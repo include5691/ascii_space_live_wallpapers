@@ -5,6 +5,7 @@ const SINGLE_PLANET_SCALE = 0.8;
 const COMET_PERIOD = 70;
 const COMET_DURATION = 40;
 const COMET_REACH = 26;
+const COMET_CLEARANCE = 5.5;
 const DEFAULT_LIGHT = [-0.72, 0.36, 0.6];
 const DISK_OUTER = 17;
 const BLACK_HOLE_DISK_INNER = 2.1;
@@ -27,7 +28,9 @@ const INSPIRAL_CHIRP = INSPIRAL_TIME / (1 - (MIN_SEPARATION / SEPARATION) ** 4);
 
 export const KINDS = {'black-hole': 0, 'neutron-star': 1, 'star': 2, 'wormhole': 3, 'planet': 4};
 
-const MASS = {'black-hole': 1, 'neutron-star': 1, 'star': 0.5, 'wormhole': 1, 'planet': 0.15};
+const MASS = {'black-hole': 1, 'neutron-star': 1, 'star': 0.5, 'wormhole': 1, 'planet': 0.4};
+const PAIR_FOV = 1.15;
+const BLACK_HOLE_SHADOW = 2.6;
 
 const SINGLE_SCALE = {'star': SINGLE_STAR_SCALE, 'planet': SINGLE_PLANET_SCALE};
 
@@ -81,8 +84,10 @@ let blackHoleInner = BLACK_HOLE_DISK_INNER;
 function disk(kind, outer, gain) {
     if (kind === 'black-hole')
         return [blackHoleInner, outer, gain];
-    if (kind === 'neutron-star' && gain > 0)
-        return [NEUTRON_DISK_INNER, Math.max(outer, NEUTRON_DISK_INNER * 1.5), gain];
+    if (kind === 'neutron-star' && gain > 0) {
+        const fit = smooth(NEUTRON_DISK_INNER, NEUTRON_DISK_INNER * 1.4, outer);
+        return fit > 0 ? [NEUTRON_DISK_INNER, Math.max(outer, NEUTRON_DISK_INNER + 0.3), gain * fit] : [0, 0, 0];
+    }
     return [0, 0, 0];
 }
 
@@ -150,6 +155,7 @@ export class Scene {
             flash: 0,
             fade: 1,
             beams: 1,
+            fov: this._objects.length === 2 ? PAIR_FOV : 1,
             star: [1, 0, 0, 0],
             light: [...DEFAULT_LIGHT, 0],
             comet: [0, 0, 0, 0],
@@ -235,12 +241,15 @@ export class Scene {
             return;
 
         const side = random(cycle, 1) < 0.5 ? -1 : 1;
-        const start = [side * COMET_REACH, (random(cycle, 2) - 0.5) * 10, -4 - random(cycle, 3) * 10];
-        const end = [-side * COMET_REACH, (random(cycle, 4) - 0.5) * 10, -2 + random(cycle, 5) * 8];
+        const lift = (random(cycle, 2) < 0.5 ? -1 : 1) * (COMET_CLEARANCE + 3 * random(cycle, 3));
+        const depth = -2 - 8 * random(cycle, 4);
+        const start = [side * COMET_REACH, lift, depth];
+        const end = [-side * COMET_REACH, lift * (0.7 + 0.3 * random(cycle, 5)), depth + (random(cycle, 6) - 0.5) * 6];
         const position = start.map((v, i) => mix(v, end[i], progress));
         const heading = normalize(end.map((v, i) => v - start[i]));
-        const sun = state.light[3] > 0.5 ? state.light.slice(0, 3) : [0, 0, 0];
-        const ion = normalize(position.map((v, i) => v - sun[i]));
+        const ion = state.light[3] > 0.5
+            ? normalize(position.map((v, i) => v - state.light[i]))
+            : normalize(state.light.slice(0, 3).map(v => -v));
         const dust = normalize(ion.map((v, i) => 0.7 * v - 0.5 * heading[i]));
         state.comet = [...position, smooth(0, 0.1, progress) * (1 - smooth(0.9, 1, progress))];
         state.cometIon = [...ion, 12];
@@ -266,7 +275,8 @@ export class Scene {
         const t = this._time;
         const swell = smooth(STABLE_TIME, STABLE_TIME + SWELL_TIME, t);
         if (t < EXPLOSION_TIME - COLLAPSE_TIME) {
-            const pulse = 1 + 0.04 * swell * Math.sin(2 * Math.PI * (t - STABLE_TIME) / 2.5);
+            const settle = 1 - smooth(STABLE_TIME + SWELL_TIME - 3, STABLE_TIME + SWELL_TIME, t);
+            const pulse = 1 + 0.04 * swell * settle * Math.sin(2 * Math.PI * (t - STABLE_TIME) / 2.5);
             state.bodies = [body('star', [0, 0, 0], SINGLE_STAR_SCALE * (1 + 0.7 * swell) * pulse)];
             state.star = [1 - swell, 0, 0, 0];
             return;
@@ -292,10 +302,18 @@ export class Scene {
         const dx = target[0] - center[0];
         const dz = target[2] - center[2];
         const distance = Math.hypot(dx, dz);
-        const eaterDisk = bodies[eater].disk;
-        const inner = (eaterDisk[2] > 0 ? eaterDisk[0] : NEUTRON_RADIUS * 1.2) * bodies[eater].scale;
-        const stretch = state.tidal[0];
-        const start = Math.max(distance - radiusOf(bodies[victim].kind, bodies[victim].scale) * stretch, inner * 1.5);
+        const eaterBody = bodies[eater];
+        const eaterScale = eaterBody.scale;
+        const inner = eaterBody.kind === 'black-hole'
+            ? eaterBody.disk[0] * eaterScale
+            : mix(NEUTRON_RADIUS * 1.2, NEUTRON_DISK_INNER, Math.min(eaterBody.disk[2], 1)) * eaterScale;
+        const clearance = eaterBody.kind === 'black-hole'
+            ? Math.max(eaterBody.disk[0], BLACK_HOLE_SHADOW) * eaterScale
+            : Math.max(inner, NEUTRON_RADIUS * 1.2 * eaterScale);
+        const radius = radiusOf(bodies[victim].kind, bodies[victim].scale);
+        const reach = distance - clearance;
+        const stretch = radius > 0 && radius * state.tidal[0] > reach ? Math.max(1, reach / radius) : state.tidal[0];
+        const start = Math.max(distance - radius * stretch, inner * 1.5);
         state.stream = [strength, tightness, width, start];
         state.streamCenter = [center[0], center[2], inner, Math.atan2(dz, dx)];
         state.tidal = [stretch, -dx / distance, -dz / distance, victim];

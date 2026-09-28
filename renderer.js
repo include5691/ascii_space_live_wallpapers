@@ -267,7 +267,6 @@ export const SpaceContent = GObject.registerClass({
         pipeline.set_uniform_float(uniforms.u_camera, 3, 1,
             [this._camera.yaw, this._camera.pitch, options.tilt]);
         pipeline.set_uniform_float(uniforms.u_flow, 4, 1, [phaseA, seedA, phaseB, seedB]);
-        pipeline.set_uniform_1f(uniforms.u_fov, FOV / this._zoom);
         pipeline.set_uniform_1f(uniforms.u_time, this._time);
         pipeline.set_uniform_1f(uniforms.u_exposure, options.exposure);
         pipeline.set_uniform_1f(uniforms.u_doppler, options.doppler);
@@ -275,6 +274,7 @@ export const SpaceContent = GObject.registerClass({
         this._scene.spin = options.spin;
         this._scene.comets = options.comets;
         const scene = this._scene.state(this._locked || options.orbitSpeed === 0);
+        pipeline.set_uniform_1f(uniforms.u_fov, FOV * scene.fov / this._zoom);
         const padded = [...scene.bodies, scene.bodies[0]].slice(0, 2);
         pipeline.set_uniform_float(uniforms.u_bodies, 4, 2, padded.flatMap(body => [...body.position, body.scale]));
         pipeline.set_uniform_float(uniforms.u_disks, 4, 2, padded.flatMap(body => [...body.disk, 0]));

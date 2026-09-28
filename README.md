@@ -12,13 +12,17 @@ Light rays bend around the black hole, so the far side of the disk shows up abov
 
 - Real-time ray tracing of light around a black hole, in a GLSL shader.
 - Drawn as ASCII characters in the scene's own colors, from ` .:-+=*%#@`.
-- Four object types:
-  - a black hole with an accretion disk;
+- Five object types:
+  - a spinning black hole with an accretion disk. Spin drags space around it, which squashes the shadow into a D shape, and pulls the disk's inner edge closer, following the Kerr ISCO;
   - a lone neutron star (pulsar) with rotating hot spots and sweeping beams, and no disk, like most real pulsars;
   - a Sun-like star with limb darkening, granulation, sunspots and a corona;
-  - a wormhole: its mouth bends light like a black hole, and through its throat you see another universe with a spinning spiral galaxy.
+  - a wormhole: its mouth bends light like a black hole, and through its throat you see another universe with a spinning spiral galaxy;
+  - a ringed planet: a banded gas giant with a storm, lit by a sun, with rings that it shadows and that shadow it, and three moons. Next to a star, it is lit by that star.
 - A Milky Way sky: a glowing band with dust lanes, a bright core, denser stars and colored nebulae, bent by every object. Or plain stars.
-- A single star goes supernova: it swells into a pulsing red giant, collapses, explodes in a flash, and leaves a newborn pulsar inside an expanding filament nebula.
+- A single star lives out one of two real fates, taking turns:
+  - planetary nebula: it swells into a red giant, then puffs off a glowing ring nebula, teal inside and red outside, around a tiny blue-white dwarf;
+  - supernova: it swells, collapses, explodes in a flash, and leaves a newborn pulsar inside an expanding filament nebula.
+- Comets with blue ion tails and curved dust tails sweep through now and then, and meteors streak across the sky.
 - Pair mode shows two objects orbiting each other, with light bent by every black hole and neutron star. Pick any combination.
 - Pairs play out a cosmic event, then fade and start again:
 
@@ -28,7 +32,7 @@ Light rays bend around the black hole, so the far side of the disk shows up abov
   | Black hole or neutron star and a star | A stream of gas pours from the star into the compact object. The star stretches, then is torn apart and swallowed. A black hole then fires jets; a neutron star's pulsar beams blaze brighter. |
   | Two neutron stars | They spiral in and merge: a gamma-ray-burst jet, a shockwave, and a kilonova cloud of fresh heavy elements that cools from blue to red around the new black hole. |
   | Black hole and neutron star | They spiral in, the neutron star is torn apart and swallowed, and the black hole fires jets. |
-  | Two stars, or any pair with a wormhole | A calm orbit. |
+  | Two stars, or any pair with a wormhole or a planet | A calm orbit. |
 
   Orbit speed also sets the speed of the event. A black hole event takes about 2 minutes at 100 %. Turn off Cosmic events for calm scenes only.
 - Moving the cursor turns the camera. The camera eases after it.
@@ -76,8 +80,10 @@ gnome-extensions prefs space-wallpaper@include5691.github.io
 | Setting | Default | Range |
 | --- | --- | --- |
 | Mode | single | single, pair |
-| First object | black hole | black hole, neutron star, star, wormhole |
-| Second object (pair) | black hole | black hole, neutron star, star, wormhole |
+| Black hole spin | 60 % | 0 – 99 |
+| Comets and meteors | on | |
+| First object | black hole | black hole, neutron star, star, wormhole, ringed planet |
+| Second object (pair) | black hole | black hole, neutron star, star, wormhole, ringed planet |
 | Orbit speed (pair) | 100 % | 0 – 400, also sets event speed |
 | Cosmic events | on | |
 | Frame rate | 30 fps | 5 – 60 |
@@ -121,7 +127,7 @@ At 30 fps that is 2 – 6 % of the GPU. The Milky Way adds about 0.3 ms.
 | --- | --- |
 | `extension.js` | Hooks into backgrounds, timer, settings, window cover check, lock screen |
 | `renderer.js` | Offscreen passes, camera and cursor easing |
-| `events.js` | Object layout, orbits, pair events and the supernova timeline |
+| `events.js` | Object layout, orbits, lighting, comets, pair events and the star life cycles |
 | `shader.js` | Scene and ASCII GLSL shaders |
 | `prefs.js` | Preferences window |
 | `schemas/` | GSettings schema |

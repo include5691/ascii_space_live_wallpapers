@@ -1,6 +1,11 @@
 const SEPARATION = 12;
 const PAIR_SCALE = 0.6;
 const SINGLE_STAR_SCALE = 0.65;
+const SINGLE_PLANET_SCALE = 0.8;
+const COMET_PERIOD = 70;
+const COMET_DURATION = 40;
+const COMET_REACH = 26;
+const DEFAULT_LIGHT = [-0.72, 0.36, 0.6];
 const DISK_OUTER = 17;
 const BLACK_HOLE_DISK_INNER = 2.1;
 const NEUTRON_DISK_INNER = 5.5;
@@ -20,9 +25,11 @@ const REMNANT_TIME = 50;
 const EXPLOSION_TIME = STABLE_TIME + SWELL_TIME + COLLAPSE_TIME;
 const INSPIRAL_CHIRP = INSPIRAL_TIME / (1 - (MIN_SEPARATION / SEPARATION) ** 4);
 
-export const KINDS = {'black-hole': 0, 'neutron-star': 1, 'star': 2, 'wormhole': 3};
+export const KINDS = {'black-hole': 0, 'neutron-star': 1, 'star': 2, 'wormhole': 3, 'planet': 4};
 
-const MASS = {'black-hole': 1, 'neutron-star': 1, 'star': 0.5, 'wormhole': 1};
+const MASS = {'black-hole': 1, 'neutron-star': 1, 'star': 0.5, 'wormhole': 1, 'planet': 0.15};
+
+const SINGLE_SCALE = {'star': SINGLE_STAR_SCALE, 'planet': SINGLE_PLANET_SCALE};
 
 const SCENARIOS = {
     'black-hole+black-hole': 'merger',
@@ -47,11 +54,33 @@ const smooth = (edge0, edge1, x) => {
 
 const decay = (x, time) => (x < 0 ? 0 : Math.exp(-x / time));
 
+const random = (seed, n) => {
+    const x = Math.sin(seed * 12.9898 + n * 78.233) * 43758.5453;
+    return x - Math.floor(x);
+};
+
+const normalize = v => {
+    const length = Math.hypot(...v);
+    return v.map(x => x / length);
+};
+
 const inspiralSeparation = t => SEPARATION * Math.max(1 - t / INSPIRAL_CHIRP, 0) ** 0.25;
+
+export function iscoRatio(spin) {
+    const cube = Math.cbrt;
+    const isco = a => {
+        const z1 = 1 + cube(1 - a * a) * (cube(1 + a) + cube(1 - a));
+        const z2 = Math.sqrt(3 * a * a + z1 * z1);
+        return 3 + z2 - Math.sqrt((3 - z1) * (3 + z1 + 2 * z2));
+    };
+    return isco(spin) / isco(0);
+}
+
+let blackHoleInner = BLACK_HOLE_DISK_INNER;
 
 function disk(kind, outer, gain) {
     if (kind === 'black-hole')
-        return [BLACK_HOLE_DISK_INNER, outer, gain];
+        return [blackHoleInner, outer, gain];
     if (kind === 'neutron-star' && gain > 0)
         return [NEUTRON_DISK_INNER, Math.max(outer, NEUTRON_DISK_INNER * 1.5), gain];
     return [0, 0, 0];
@@ -78,24 +107,37 @@ export class Scene {
         this._time = 0;
         this._angle = 0;
         this._looped = false;
+        this._cycle = 0;
+        this._clock = 0;
+    }
+
+    set spin(value) {
+        this._spin = value;
+    }
+
+    set comets(value) {
+        this._comets = value;
     }
 
     matches(objects, events) {
         return objects.join('+') === this._objects.join('+') && events === this._events;
     }
 
-    advance(dt) {
+    advance(dt, realDt = dt) {
         const duration = DURATIONS[this._scenario];
         this._time += dt;
+        this._clock += realDt;
         if (duration && this._time >= duration) {
             this._time %= duration;
             this._looped = true;
+            this._cycle++;
         }
         const speed = ANGULAR_SPEED * (SEPARATION / this._separation()) ** 1.5;
         this._angle = (this._angle - dt * speed) % (2 * Math.PI);
     }
 
     state(still = false) {
+        blackHoleInner = Math.max(BLACK_HOLE_DISK_INNER * iscoRatio(this._spin ?? 0), 1.3);
         const state = {
             bodies: [],
             gw: [0, 0, 0, 0],
@@ -109,6 +151,11 @@ export class Scene {
             fade: 1,
             beams: 1,
             star: [1, 0, 0, 0],
+            light: [...DEFAULT_LIGHT, 0],
+            comet: [0, 0, 0, 0],
+            cometIon: [1, 0, 0, 1],
+            cometDust: [1, 0, 0, 1],
+            meteors: this._comets ? 1 : 0,
         };
         switch (this._scenario) {
         case 'single':
@@ -118,7 +165,10 @@ export class Scene {
             this._devour(state);
             break;
         case 'supernova':
-            this._supernova(state);
+            if (this._cycle % 2 === 0)
+                this._planetaryNebula(state);
+            else
+                this._supernova(state);
             break;
         case 'orbit':
             state.bodies = this._pair(SEPARATION, [0, 0]);
@@ -126,6 +176,11 @@ export class Scene {
         default:
             this._inspiral(state);
         }
+
+        const star = state.bodies.find(candidate => candidate.kind === 'star');
+        if (star && this._scenario !== 'supernova')
+            state.light = [...star.position, 1];
+        this._comet(state);
 
         const duration = DURATIONS[this._scenario];
         if (still) {
@@ -168,7 +223,43 @@ export class Scene {
 
     _single(state) {
         const [kind] = this._objects;
-        state.bodies = [body(kind, [0, 0, 0], kind === 'star' ? SINGLE_STAR_SCALE : 1)];
+        state.bodies = [body(kind, [0, 0, 0], SINGLE_SCALE[kind] ?? 1)];
+    }
+
+    _comet(state) {
+        if (!this._comets)
+            return;
+        const cycle = Math.floor(this._clock / COMET_PERIOD);
+        const progress = (this._clock - cycle * COMET_PERIOD) / COMET_DURATION;
+        if (progress > 1)
+            return;
+
+        const side = random(cycle, 1) < 0.5 ? -1 : 1;
+        const start = [side * COMET_REACH, (random(cycle, 2) - 0.5) * 10, -4 - random(cycle, 3) * 10];
+        const end = [-side * COMET_REACH, (random(cycle, 4) - 0.5) * 10, -2 + random(cycle, 5) * 8];
+        const position = start.map((v, i) => mix(v, end[i], progress));
+        const heading = normalize(end.map((v, i) => v - start[i]));
+        const sun = state.light[3] > 0.5 ? state.light.slice(0, 3) : [0, 0, 0];
+        const ion = normalize(position.map((v, i) => v - sun[i]));
+        const dust = normalize(ion.map((v, i) => 0.7 * v - 0.5 * heading[i]));
+        state.comet = [...position, smooth(0, 0.1, progress) * (1 - smooth(0.9, 1, progress))];
+        state.cometIon = [...ion, 12];
+        state.cometDust = [...dust, 8];
+    }
+
+    _planetaryNebula(state) {
+        const t = this._time;
+        const shed = STABLE_TIME + SWELL_TIME;
+        if (t < shed) {
+            this._supernova(state);
+            return;
+        }
+
+        const since = t - shed;
+        const shrink = smooth(0, 10, since);
+        state.bodies = [body('star', [0, 0, 0], SINGLE_STAR_SCALE * mix(1.7, 0.1, shrink))];
+        state.star = [2 * shrink, 0, 0, 0];
+        state.kilonova = [1.2 + 5 * (1 - decay(since, 14)), smooth(0, 6, since) * (0.5 + 0.5 * decay(since, 60)), smooth(0, 30, since), 2];
     }
 
     _supernova(state) {
@@ -247,7 +338,7 @@ export class Scene {
             state.bodies = [body('black-hole', position, mix(PAIR_SCALE, 0.75, smooth(0, 5, since)), gain, outer)];
             state.jets = [...position, 3 * smooth(0, 0.5, since) * decay(since, 4)];
             state.stream = [1.5 * decay(since, 3), 0.3, 1.5, MIN_SEPARATION];
-            state.streamCenter = [position[0], position[2], BLACK_HOLE_DISK_INNER * PAIR_SCALE, this._victimAngle(victim)];
+            state.streamCenter = [position[0], position[2], blackHoleInner * PAIR_SCALE, this._victimAngle(victim)];
             return;
         }
 
@@ -289,7 +380,7 @@ export class Scene {
         const before = eaterKind === 'black-hole' ? 2.2 : 2;
         const gain = mix(before, 1.2, smooth(0, 20, since)) + 1.5 * smooth(0, 1, since) * decay(since, 8);
         const outer = mix(Math.min(DISK_OUTER, 0.42 * separation / PAIR_SCALE), DISK_OUTER, smooth(0, 12, since));
-        const inner = (eaterKind === 'black-hole' ? BLACK_HOLE_DISK_INNER : NEUTRON_DISK_INNER) * PAIR_SCALE;
+        const inner = (eaterKind === 'black-hole' ? blackHoleInner : NEUTRON_DISK_INNER) * PAIR_SCALE;
         state.bodies = [body(eaterKind, position, PAIR_SCALE, gain, outer)];
         state.stream = [3 * decay(since, 3), 0.18, 2.5, Math.max(separation, inner * 1.5)];
         state.streamCenter = [position[0], position[2], inner, this._victimAngle(victim)];

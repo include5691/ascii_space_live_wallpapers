@@ -14,6 +14,7 @@ const OBJECTS = [
     ['neutron-star', 'Neutron star'],
     ['star', 'Star'],
     ['wormhole', 'Wormhole'],
+    ['planet', 'Ringed planet'],
 ];
 
 const BACKGROUNDS = [
@@ -77,6 +78,8 @@ export default class SpaceWallpaperPreferences extends ExtensionPreferences {
         objects.add(comboRow(settings, 'first-object', 'First object', OBJECTS));
         objects.add(secondObject);
         objects.add(orbitSpeed);
+        objects.add(spinRow(settings, 'spin', 'Black hole spin', 'Percent of the maximum; drags space and squashes the shadow'));
+        objects.add(switchRow(settings, 'comets', 'Comets and meteors'));
         objects.add(switchRow(settings, 'events', 'Cosmic events',
             'Mergers, devoured stars and supernovae'));
 

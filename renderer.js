@@ -25,6 +25,7 @@ const SCENE_UNIFORMS = [
     'u_resolution', 'u_camera', 'u_fov', 'u_flow', 'u_time', 'u_exposure', 'u_doppler',
     'u_bodies', 'u_disks', 'u_kinds', 'u_count', 'u_gw', 'u_burst', 'u_stream', 'u_stream_center',
     'u_tidal', 'u_jets', 'u_kilonova', 'u_flash', 'u_fade', 'u_beams', 'u_background', 'u_star',
+    'u_spins', 'u_light', 'u_comet', 'u_comet_ion', 'u_comet_dust', 'u_meteors',
 ];
 const ASCII_UNIFORMS = ['scene', 'u_output', 'u_cells', 'u_origin', 'u_font'];
 
@@ -251,7 +252,7 @@ export const SpaceContent = GObject.registerClass({
         const options = this._options;
         this._flow += dt * options.speed / FLOW_PERIOD;
         this._time = (this._time + dt) % TIME_PERIOD;
-        this._scene.advance(dt * options.orbitSpeed);
+        this._scene.advance(dt * options.orbitSpeed, dt);
         this._updateCamera(dt);
         this._zoom = this._zoom
             ? this._zoom + (options.zoom - this._zoom) * (1 - Math.exp(-dt / ZOOM_SMOOTHING))
@@ -271,21 +272,26 @@ export const SpaceContent = GObject.registerClass({
         pipeline.set_uniform_1f(uniforms.u_exposure, options.exposure);
         pipeline.set_uniform_1f(uniforms.u_doppler, options.doppler);
 
+        this._scene.spin = options.spin;
+        this._scene.comets = options.comets;
         const scene = this._scene.state(this._locked || options.orbitSpeed === 0);
         const padded = [...scene.bodies, scene.bodies[0]].slice(0, 2);
         pipeline.set_uniform_float(uniforms.u_bodies, 4, 2, padded.flatMap(body => [...body.position, body.scale]));
         pipeline.set_uniform_float(uniforms.u_disks, 4, 2, padded.flatMap(body => [...body.disk, 0]));
         pipeline.set_uniform_float(uniforms.u_kinds, 1, 2, padded.map(body => KINDS[body.kind]));
         pipeline.set_uniform_1f(uniforms.u_count, scene.bodies.length);
+        pipeline.set_uniform_float(uniforms.u_spins, 1, 2, padded.map(body => (body.kind === 'black-hole' ? options.spin : 0)));
         for (const [name, value] of [
             ['u_gw', scene.gw], ['u_burst', scene.burst], ['u_stream', scene.stream],
             ['u_stream_center', scene.streamCenter], ['u_tidal', scene.tidal], ['u_jets', scene.jets],
-            ['u_kilonova', scene.kilonova], ['u_star', scene.star],
+            ['u_kilonova', scene.kilonova], ['u_star', scene.star], ['u_light', scene.light],
+            ['u_comet', scene.comet], ['u_comet_ion', scene.cometIon], ['u_comet_dust', scene.cometDust],
         ])
             pipeline.set_uniform_float(uniforms[name], 4, 1, value);
         pipeline.set_uniform_1f(uniforms.u_flash, scene.flash);
         pipeline.set_uniform_1f(uniforms.u_fade, scene.fade);
         pipeline.set_uniform_1f(uniforms.u_beams, scene.beams);
+        pipeline.set_uniform_1f(uniforms.u_meteors, scene.meteors);
         pipeline.set_uniform_1f(uniforms.u_background, options.background === 'milky-way' ? 1 : 0);
 
         drawFullscreen(this._sceneFramebuffer, pipeline);

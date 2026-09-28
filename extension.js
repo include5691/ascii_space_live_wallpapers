@@ -8,12 +8,6 @@ import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 
 import {BlackHoleContent} from './renderer.js';
 
-const QUALITY = {
-    low: {step: 0.14, octaves: 3},
-    medium: {step: 0.1, octaves: 4},
-    high: {step: 0.07, octaves: 5},
-};
-
 const MIN_SMOOTHING = 0.03;
 const MAX_SMOOTHING = 1.5;
 
@@ -21,8 +15,7 @@ const radians = degrees => degrees * Math.PI / 180;
 
 function readOptions(settings) {
     return {
-        ...QUALITY[settings.get_string('quality')],
-        renderScale: settings.get_uint('render-scale') / 100,
+        charSize: settings.get_uint('char-size'),
         pauseWhenCovered: settings.get_boolean('pause-when-covered'),
         followCursor: settings.get_boolean('follow-cursor'),
         sensitivity: settings.get_uint('cursor-sensitivity') / 100,
@@ -38,6 +31,8 @@ function readOptions(settings) {
 
 function* findBackgroundActors(actor) {
     for (const child of actor) {
+        if (child instanceof Background.SystemBackground)
+            continue;
         if (child instanceof Meta.BackgroundActor)
             yield child;
         else
@@ -77,14 +72,17 @@ export default class BlackHoleWallpaperExtension extends Extension {
             this._decorate(backgroundActor);
 
         Main.layoutManager.connectObject('monitors-changed', () => this._syncMonitors(), this);
+        Main.sessionMode.connectObject('updated', () => this._syncLock(), this);
         this._settings.connectObject('changed', (settings, key) => this._onSettingChanged(key), this);
-        this._startTimer();
+        this._syncLock();
     }
 
     disable() {
+        // unlock-dialog keeps the extension enabled so the lock screen shows a still black hole
         this._stopTimer();
         this._settings.disconnectObject(this);
         Main.layoutManager.disconnectObject(this);
+        Main.sessionMode.disconnectObject(this);
         this._injectionManager.clear();
         this._injectionManager = null;
         this._views.forEach(view => view.destroy());
@@ -102,6 +100,7 @@ export default class BlackHoleWallpaperExtension extends Extension {
         if (!this._contents[index]) {
             this._contents[index] = new BlackHoleContent(this._options);
             this._contents[index].setMonitor(monitor, global.display.get_monitor_scale(index));
+            this._contents[index].setLocked(Main.sessionMode.isLocked);
         }
         return this._contents[index];
     }
@@ -116,9 +115,32 @@ export default class BlackHoleWallpaperExtension extends Extension {
             source: backgroundActor,
             coordinate: Clutter.BindCoordinate.SIZE,
         }));
-        view.connect('destroy', () => this._views?.delete(view));
+
+        const container = backgroundActor.get_parent();
+        const blur = container.get_effect('blur');
+        if (blur)
+            blur.enabled = false;
+
+        view.connect('destroy', () => {
+            this._views?.delete(view);
+            if (blur && !this._hasViewIn(container))
+                blur.enabled = true;
+        });
         backgroundActor.add_child(view);
         this._views.add(view);
+    }
+
+    _hasViewIn(container) {
+        return [...this._views ?? []].some(view => view.get_parent()?.get_parent() === container);
+    }
+
+    _syncLock() {
+        const locked = Main.sessionMode.isLocked;
+        this._contents.forEach(content => content.setLocked(locked));
+        if (locked)
+            this._stopTimer();
+        else if (!this._timerId)
+            this._startTimer();
     }
 
     _syncMonitors() {
@@ -132,7 +154,7 @@ export default class BlackHoleWallpaperExtension extends Extension {
     _onSettingChanged(key) {
         if (key === 'fps') {
             this._stopTimer();
-            this._startTimer();
+            this._syncLock();
             return;
         }
 
@@ -149,7 +171,8 @@ export default class BlackHoleWallpaperExtension extends Extension {
     }
 
     _stopTimer() {
-        GLib.Source.remove(this._timerId);
+        if (this._timerId)
+            GLib.Source.remove(this._timerId);
         this._timerId = 0;
     }
 

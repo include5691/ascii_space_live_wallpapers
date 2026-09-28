@@ -5,7 +5,7 @@ import GObject from 'gi://GObject';
 
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 
-import {SHADER} from './shader.js';
+import {ASCII_SHADER, SCENE_SHADER} from './shader.js';
 
 const FOV = 0.36;
 const FLOW_PERIOD = 18;
@@ -15,12 +15,12 @@ const MAX_FRAME_TIME = 0.25;
 const MAX_YAW = Math.PI / 3;
 const MAX_PITCH = Math.PI / 7;
 const PITCH_LIMIT = Math.PI * 0.45;
-const MIN_TEXTURE_SIZE = 16;
+const CELL_WIDTH = 6;
+const CELL_HEIGHT = 9;
+const SAMPLES_PER_CELL = 2;
 
-const UNIFORMS = [
-    'u_resolution', 'u_camera', 'u_fov', 'u_flow',
-    'u_time', 'u_exposure', 'u_doppler', 'u_step', 'u_octaves',
-];
+const SCENE_UNIFORMS = ['u_resolution', 'u_camera', 'u_fov', 'u_flow', 'u_time', 'u_exposure', 'u_doppler'];
+const ASCII_UNIFORMS = ['scene', 'u_output', 'u_cells', 'u_origin', 'u_font'];
 
 const ROUNDED_CLIP_DECLARATIONS = `
 uniform vec4 bounds;
@@ -64,6 +64,28 @@ const ROUNDED_CLIP_CODE = 'cogl_color_out *= rounded_rect_coverage(cogl_tex_coor
 
 const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
 
+function createPipeline(context, shader, entry, names) {
+    const pipeline = Cogl.Pipeline.new(context);
+    pipeline.set_layer_null_texture(0);
+    const snippet = Cogl.Snippet.new(Cogl.SnippetHook.FRAGMENT, shader, null);
+    snippet.set_replace(`cogl_color_out = ${entry}(cogl_tex_coord_in[0].xy);`);
+    pipeline.add_snippet(snippet);
+    const uniforms = Object.fromEntries(names.map(name => [name, pipeline.get_uniform_location(name)]));
+    return {pipeline, uniforms};
+}
+
+function createFramebuffer(texture) {
+    const framebuffer = Cogl.Offscreen.new_with_texture(texture);
+    framebuffer.allocate();
+    framebuffer.orthographic(0, 0, texture.get_width(), texture.get_height(), -1, 1);
+    return framebuffer;
+}
+
+function drawFullscreen(framebuffer, pipeline) {
+    framebuffer.draw_textured_rectangle(pipeline, 0, 0,
+        framebuffer.get_width(), framebuffer.get_height(), 0, 0, 1, 1);
+}
+
 export const BlackHoleContent = GObject.registerClass({
     Implements: [Clutter.Content],
 }, class BlackHoleContent extends GObject.Object {
@@ -72,9 +94,11 @@ export const BlackHoleContent = GObject.registerClass({
         this._options = options;
         this._monitor = null;
         this._scale = 1;
-        this._pipeline = null;
-        this._uniforms = null;
+        this._locked = false;
+        this._scenePipeline = null;
+        this._asciiPipeline = null;
         this._viewPipelines = new WeakMap();
+        this._sceneFramebuffer = null;
         this._texture = null;
         this._framebuffer = null;
         this._dirty = true;
@@ -90,8 +114,15 @@ export const BlackHoleContent = GObject.registerClass({
         this._releaseTexture();
     }
 
+    setLocked(locked) {
+        this._locked = locked;
+        if (locked)
+            this._camera = null;
+        this.advance();
+    }
+
     setOptions(options) {
-        const resized = options.renderScale !== this._options.renderScale;
+        const resized = options.charSize !== this._options.charSize;
         this._options = options;
         if (resized)
             this._releaseTexture();
@@ -159,31 +190,44 @@ export const BlackHoleContent = GObject.registerClass({
     }
 
     _allocate(context) {
-        this._pipeline ??= this._createPipeline(context);
+        this._scenePipeline ??= createPipeline(context, SCENE_SHADER, 'renderPixel', SCENE_UNIFORMS);
+        this._asciiPipeline ??= createPipeline(context, ASCII_SHADER, 'asciiPixel', ASCII_UNIFORMS);
 
-        const scale = this._scale * this._options.renderScale;
-        const width = Math.max(Math.round(this._monitor.width * scale), MIN_TEXTURE_SIZE);
-        const height = Math.max(Math.round(this._monitor.height * scale), MIN_TEXTURE_SIZE);
+        const width = Math.round(this._monitor.width * this._scale);
+        const height = Math.round(this._monitor.height * this._scale);
+        const font = this._options.charSize;
+        const cellWidth = CELL_WIDTH * font;
+        const cellHeight = CELL_HEIGHT * font;
+        const columns = Math.ceil(width / cellWidth);
+        const rows = Math.ceil(height / cellHeight);
+
+        const sceneTexture = Cogl.Texture2D.new_with_size(context,
+            columns * SAMPLES_PER_CELL, rows * SAMPLES_PER_CELL);
+        this._sceneFramebuffer = createFramebuffer(sceneTexture);
         this._texture = Cogl.Texture2D.new_with_size(context, width, height);
-        this._framebuffer = Cogl.Offscreen.new_with_texture(this._texture);
-        this._framebuffer.allocate();
-        this._framebuffer.orthographic(0, 0, width, height, -1, 1);
-        this._pipeline.set_uniform_float(this._uniforms.u_resolution, 2, 1, [width, height]);
+        this._framebuffer = createFramebuffer(this._texture);
+
+        const scene = this._scenePipeline;
+        scene.pipeline.set_uniform_float(scene.uniforms.u_resolution, 2, 1,
+            [columns * cellWidth, rows * cellHeight]);
+
+        const ascii = this._asciiPipeline;
+        ascii.pipeline.set_layer_texture(0, sceneTexture);
+        ascii.pipeline.set_layer_filters(0, Cogl.PipelineFilter.LINEAR, Cogl.PipelineFilter.LINEAR);
+        ascii.pipeline.set_layer_wrap_mode(0, Cogl.PipelineWrapMode.CLAMP_TO_EDGE);
+        ascii.pipeline.set_uniform_1i(ascii.uniforms.scene, 0);
+        ascii.pipeline.set_uniform_float(ascii.uniforms.u_output, 2, 1, [width, height]);
+        ascii.pipeline.set_uniform_float(ascii.uniforms.u_cells, 2, 1, [columns, rows]);
+        ascii.pipeline.set_uniform_float(ascii.uniforms.u_origin, 2, 1, [
+            Math.floor((columns * cellWidth - width) / 2),
+            Math.floor((rows * cellHeight - height) / 2),
+        ]);
+        ascii.pipeline.set_uniform_1f(ascii.uniforms.u_font, font);
         this._dirty = true;
     }
 
-    _createPipeline(context) {
-        const pipeline = Cogl.Pipeline.new(context);
-        pipeline.set_layer_null_texture(0);
-        const snippet = Cogl.Snippet.new(Cogl.SnippetHook.FRAGMENT, SHADER, null);
-        snippet.set_replace('cogl_color_out = renderPixel(cogl_tex_coord_in[0].xy);');
-        pipeline.add_snippet(snippet);
-        this._uniforms = Object.fromEntries(
-            UNIFORMS.map(name => [name, pipeline.get_uniform_location(name)]));
-        return pipeline;
-    }
-
     _releaseTexture() {
+        this._sceneFramebuffer = null;
         this._framebuffer = null;
         this._texture = null;
         this._dirty = true;
@@ -204,8 +248,7 @@ export const BlackHoleContent = GObject.registerClass({
         const seedA = Math.floor(this._flow) % FLOW_SEEDS;
         const seedB = Math.floor(this._flow + 0.5) % FLOW_SEEDS;
 
-        const pipeline = this._pipeline;
-        const uniforms = this._uniforms;
+        const {pipeline, uniforms} = this._scenePipeline;
         pipeline.set_uniform_float(uniforms.u_camera, 3, 1,
             [this._camera.yaw, this._camera.pitch, options.tilt]);
         pipeline.set_uniform_float(uniforms.u_flow, 4, 1, [phaseA, seedA, phaseB, seedB]);
@@ -213,18 +256,16 @@ export const BlackHoleContent = GObject.registerClass({
         pipeline.set_uniform_1f(uniforms.u_time, this._time);
         pipeline.set_uniform_1f(uniforms.u_exposure, options.exposure);
         pipeline.set_uniform_1f(uniforms.u_doppler, options.doppler);
-        pipeline.set_uniform_1f(uniforms.u_step, options.step);
-        pipeline.set_uniform_1f(uniforms.u_octaves, options.octaves);
 
-        this._framebuffer.draw_textured_rectangle(pipeline, 0, 0,
-            this._texture.get_width(), this._texture.get_height(), 0, 0, 1, 1);
+        drawFullscreen(this._sceneFramebuffer, pipeline);
+        drawFullscreen(this._framebuffer, this._asciiPipeline.pipeline);
         this._dirty = false;
     }
 
     _updateCamera(dt) {
         const options = this._options;
         let [x, y] = [0, 0];
-        if (options.followCursor) {
+        if (options.followCursor && !this._locked) {
             const [pointerX, pointerY] = global.get_pointer();
             const monitor = this._monitor;
             x = clamp((pointerX - monitor.x) / monitor.width * 2 - 1, -1, 1);

@@ -1,9 +1,10 @@
 {
   "uuid": "black-hole-wallpaper@include5691.github.io",
   "name": "Black Hole Wallpaper",
-  "description": "A live, GPU-rendered black hole wallpaper that turns to follow your cursor.",
+  "description": "A live ASCII-art black hole wallpaper, rendered on the GPU, that turns to follow your cursor and also covers the lock screen.",
   "shell-version": ["50"],
+  "session-modes": ["user", "unlock-dialog"],
   "url": "https://github.com/include5691/gnome_black_hole_live_wallpaper_extension",
   "settings-schema": "org.gnome.shell.extensions.black-hole-wallpaper",
-  "version-name": "1.0"
+  "version-name": "2.0"
 }

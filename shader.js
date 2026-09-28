@@ -1,4 +1,4 @@
-export const SHADER = `
+export const SCENE_SHADER = `
 uniform vec2 u_resolution;
 uniform vec3 u_camera;
 uniform float u_fov;
@@ -6,8 +6,6 @@ uniform vec4 u_flow;
 uniform float u_time;
 uniform float u_exposure;
 uniform float u_doppler;
-uniform float u_step;
-uniform float u_octaves;
 
 const float PI = 3.14159265;
 const float DISTANCE = 22.0;
@@ -19,6 +17,8 @@ const float ESCAPE_RADIUS = 120.0;
 const float CRITICAL_IMPACT = 2.598;
 const float TIME_PERIOD = 256.0;
 const int MAX_STEPS = 300;
+const float STEP_SCALE = 0.07;
+const float OCTAVES = 5.0;
 
 float hash13(vec3 p) {
     p = fract(p * 0.1031);
@@ -76,7 +76,7 @@ vec2 diskPattern(float r, float phi, float seed) {
     vec2 around = vec2(cos(phi), sin(phi));
     float lr = log(r);
     vec3 shape = noise3v(vec3(around * 3.5, lr * 7.0) + offset + 5.0);
-    float streaks = fbm(vec3(around * 2.4, (lr + (shape.x - 0.5) * 0.09) * 26.0) + offset, u_octaves);
+    float streaks = fbm(vec3(around * 2.4, (lr + (shape.x - 0.5) * 0.09) * 26.0) + offset, OCTAVES);
     return vec2(streaks * (0.45 + 1.1 * shape.y), shape.z);
 }
 
@@ -201,7 +201,7 @@ vec4 renderPixel(vec2 st) {
 
     for (int i = 0; i < MAX_STEPS; i++) {
         float r = length(pos);
-        float dt = max(u_step * r * max(1.0, r / 25.0), 0.03);
+        float dt = max(STEP_SCALE * r * max(1.0, r / 25.0), 0.03);
 
         vec3 halfVel = vel + a * (0.5 * dt);
         vec3 next = pos + halfVel * dt;
@@ -249,5 +249,62 @@ vec4 renderPixel(vec2 st) {
     color = pow(color, vec3(1.0 / 2.2));
     color += (hash13(vec3(st * u_resolution, 7.0)) - 0.5) / 255.0;
     return vec4(color, 1.0);
+}
+`;
+
+export const ASCII_SHADER = `
+uniform sampler2D scene;
+uniform vec2 u_output;
+uniform vec2 u_cells;
+uniform vec2 u_origin;
+uniform float u_font;
+
+const vec2 CELL = vec2(6.0, 9.0);
+const float LEVELS = 10.0;
+const float BLACK_POINT = 0.12;
+
+vec2 glyphBits(float level) {
+    if (level < 0.5)
+        return vec2(0.0, 0.0);
+    if (level < 1.5)
+        return vec2(0.0, 4096.0);
+    if (level < 2.5)
+        return vec2(4096.0, 128.0);
+    if (level < 3.5)
+        return vec2(458752.0, 0.0);
+    if (level < 4.5)
+        return vec2(1020032.0, 132.0);
+    if (level < 5.5)
+        return vec2(31744.0, 31.0);
+    if (level < 6.5)
+        return vec2(480384.0, 149.0);
+    if (level < 7.5)
+        return vec2(139875.0, 25378.0);
+    if (level < 8.5)
+        return vec2(359754.0, 10591.0);
+    return vec2(718382.0, 30781.0);
+}
+
+float glyphPixel(float level, vec2 p) {
+    if (p.x < 0.0 || p.x > 4.0 || p.y < 0.0 || p.y > 6.0)
+        return 0.0;
+    vec2 bits = glyphBits(level);
+    float top = step(p.y, 3.0);
+    float value = mix(bits.y, bits.x, top);
+    float index = (p.y - 4.0 * (1.0 - top)) * 5.0 + p.x;
+    return mod(floor(value / exp2(index)), 2.0);
+}
+
+vec4 asciiPixel(vec2 st) {
+    vec2 p = st * u_output + u_origin;
+    vec2 cellSize = CELL * u_font;
+    vec2 cell = floor(p / cellSize);
+    vec2 local = floor((p - cell * cellSize) / u_font) - vec2(0.0, 1.0);
+    vec3 color = texture2D(scene, (cell + 0.5) / u_cells).rgb;
+    float luma = dot(color, vec3(0.2126, 0.7152, 0.0722));
+    float value = pow(clamp((luma - BLACK_POINT) / (1.0 - BLACK_POINT), 0.0, 1.0), 0.85);
+    float level = floor(min(value, 0.999) * LEVELS);
+    vec3 tint = color / max(max(color.r, color.g), max(color.b, 0.02));
+    return vec4(tint * mix(0.55, 1.0, value) * glyphPixel(level, local), 1.0);
 }
 `;

@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schemalist>
+  <schema id="org.gnome.shell.extensions.black-hole-wallpaper" path="/org/gnome/shell/extensions/black-hole-wallpaper/">
+    <key name="render-scale" type="u">
+      <range min="25" max="100"/>
+      <default>50</default>
+      <summary>Render resolution in percent of the monitor resolution</summary>
+    </key>
+    <key name="fps" type="u">
+      <range min="5" max="60"/>
+      <default>30</default>
+      <summary>Frames rendered per second</summary>
+    </key>
+    <key name="quality" type="s">
+      <choices>
+        <choice value="low"/>
+        <choice value="medium"/>
+        <choice value="high"/>
+      </choices>
+      <default>'medium'</default>
+      <summary>Ray tracing quality</summary>
+      <description>Higher quality traces more steps per light ray and adds finer disk detail.</description>
+    </key>
+    <key name="pause-when-covered" type="b">
+      <default>true</default>
+      <summary>Pause the animation while a maximized or fullscreen window covers the monitor</summary>
+    </key>
+    <key name="follow-cursor" type="b">
+      <default>true</default>
+      <summary>Turn the camera toward the cursor</summary>
+    </key>
+    <key name="cursor-sensitivity" type="u">
+      <range min="0" max="100"/>
+      <default>50</default>
+      <summary>How far the camera turns when the cursor reaches the screen edge</summary>
+    </key>
+    <key name="cursor-smoothing" type="u">
+      <range min="0" max="100"/>
+      <default>40</default>
+      <summary>How slowly the camera follows the cursor</summary>
+    </key>
+    <key name="rotation-speed" type="u">
+      <range min="0" max="400"/>
+      <default>100</default>
+      <summary>Accretion disk rotation speed in percent</summary>
+    </key>
+    <key name="elevation" type="i">
+      <range min="-30" max="60"/>
+      <default>8</default>
+      <summary>Camera height above the disk in degrees</summary>
+    </key>
+    <key name="tilt" type="i">
+      <range min="-45" max="45"/>
+      <default>9</default>
+      <summary>Camera roll in degrees</summary>
+    </key>
+    <key name="zoom" type="u">
+      <range min="50" max="200"/>
+      <default>100</default>
+      <summary>Zoom in percent</summary>
+    </key>
+    <key name="brightness" type="u">
+      <range min="25" max="400"/>
+      <default>100</default>
+      <summary>Exposure in percent</summary>
+    </key>
+    <key name="doppler" type="u">
+      <range min="0" max="100"/>
+      <default>40</default>
+      <summary>Strength of the relativistic Doppler brightening in percent</summary>
+    </key>
+  </schema>
+</schemalist>

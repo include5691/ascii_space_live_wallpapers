@@ -7,9 +7,19 @@ uniform float u_time;
 uniform float u_exposure;
 uniform float u_doppler;
 uniform vec4 u_bodies[2];
-uniform vec2 u_disks[2];
+uniform vec4 u_disks[2];
 uniform float u_kinds[2];
 uniform float u_count;
+uniform vec4 u_gw;
+uniform vec4 u_burst;
+uniform vec4 u_stream;
+uniform vec4 u_stream_center;
+uniform vec4 u_tidal;
+uniform vec4 u_jets;
+uniform vec4 u_kilonova;
+uniform float u_flash;
+uniform float u_fade;
+uniform float u_beams;
 
 const float PI = 3.14159265;
 const float DISTANCE = 22.0;
@@ -22,6 +32,9 @@ const float STAR_RADIUS = 5.0;
 const float STAR_TURNS = 2.0;
 const float BEAM_LENGTH = 14.0;
 const float BEAM_INTENSITY = 0.35;
+const float GW_REACH = 45.0;
+const float GW_BEND = 0.004;
+const float BURST_BEND = 0.05;
 const float ESCAPE_RADIUS = 120.0;
 const float CRITICAL_IMPACT = 2.598;
 const float TIME_PERIOD = 256.0;
@@ -106,7 +119,7 @@ vec3 diskColor(float t) {
     return t < 0.5 ? mix(cool, warm, t * 2.0) : mix(warm, hot, t * 2.0 - 1.0);
 }
 
-vec4 diskSample(vec3 p, vec3 dir, vec2 extent) {
+vec4 diskSample(vec3 p, vec3 dir, vec4 extent) {
     float inner = extent.x;
     float outer = extent.y;
     float r = length(p.xz);
@@ -133,7 +146,8 @@ vec4 diskSample(vec3 p, vec3 dir, vec2 extent) {
     float alpha = 1.0 - exp(-density * (1.2 + 0.5 / max(abs(dir.y), 0.04)));
     float haze = smoothstep(inner * 1.1, inner * 2.0, r) * (1.0 - smoothstep(outer * 0.3, outer, r))
         * pow(inner / r, 1.6) * 0.025 / max(abs(dir.y), 0.1);
-    return vec4(color * intensity * dust * alpha + vec3(1.0, 0.55, 0.28) * haze, alpha);
+    float gain = extent.z;
+    return vec4((color * intensity * dust * alpha + vec3(1.0, 0.55, 0.28) * haze) * gain, alpha * min(gain, 1.0));
 }
 
 vec2 cubeFace(vec3 d, out float face) {
@@ -179,8 +193,27 @@ vec3 nebula(vec3 d) {
     return mix(vec3(0.004, 0.005, 0.008), vec3(0.009, 0.009, 0.010), wisps) * (0.6 + 0.8 * n);
 }
 
+float gwPhase(vec3 p) {
+    return 2.0 * (atan(p.z, p.x) - u_gw.y) + u_gw.z * length(p.xz);
+}
+
+float gwReach(vec3 p) {
+    float r = length(p.xz);
+    return exp(-p.y * p.y / pow(0.5 + 0.2 * r, 2.0)) * smoothstep(u_gw.w * 0.4, u_gw.w * 0.9, r)
+        * (1.0 - smoothstep(GW_REACH * 0.6, GW_REACH, r)) / (1.0 + 0.12 * r);
+}
+
 vec3 accel(vec3 p, vec3 v) {
     vec3 a = vec3(0.0);
+    if (u_gw.x > 0.0) {
+        vec2 radial = normalize(p.xz + vec2(1e-4));
+        a.xz += radial * sin(gwPhase(p)) * u_gw.x * GW_BEND * gwReach(p) * 8.0;
+    }
+    if (u_burst.z > 0.0) {
+        float r = length(p);
+        float shell = (r - u_burst.x) / u_burst.y;
+        a += p / max(r, 1e-3) * u_burst.z * BURST_BEND * exp(-shell * shell);
+    }
     for (int i = 0; i < 2; i++) {
         if (float(i) >= u_count)
             break;
@@ -226,6 +259,67 @@ vec3 starSurface(vec3 n, vec3 view, float index) {
     return color * (1.4 + 0.35 * granules) * limb * (1.0 - 0.8 * spots);
 }
 
+vec3 spacetimeSheet(vec3 hit, vec3 dir) {
+    float r = length(hit.xz);
+    float view = 0.3 / max(abs(dir.y), 0.25);
+    vec3 glow = vec3(0.0);
+    if (u_gw.x > 0.0) {
+        float crest = pow(max(cos(gwPhase(hit)), 0.0), 8.0);
+        float reach = smoothstep(u_gw.w * 0.6, u_gw.w * 1.2, r) * (1.0 - smoothstep(GW_REACH * 0.6, GW_REACH, r));
+        glow += vec3(0.5, 0.65, 1.0) * crest * u_gw.x * reach / (1.0 + 0.1 * r);
+    }
+    if (u_burst.z > 0.0) {
+        float ring = (r - u_burst.x) / u_burst.y;
+        glow += vec3(0.8, 0.85, 1.0) * u_burst.z * exp(-ring * ring) * 2.5;
+    }
+    return glow * view;
+}
+
+vec3 eventGlow(vec3 p) {
+    vec3 glow = vec3(0.0);
+
+    if (u_stream.x > 0.0) {
+        vec2 q = p.xz - u_stream_center.xy;
+        float r = length(q);
+        if (r > u_stream_center.z && r < u_stream.w * 1.1) {
+            float turn = mod(u_stream_center.w - atan(q.y, q.x), 2.0 * PI);
+            for (int k = 0; k < 3; k++) {
+                float spiral = u_stream.w * exp(-u_stream.y * (turn + 2.0 * PI * float(k)));
+                if (spiral < u_stream_center.z)
+                    break;
+                float width = u_stream.z * (0.12 + 0.07 * spiral);
+                float dr = (r - spiral) / width;
+                float dy = p.y / width;
+                float heat = sqrt(u_stream.w / spiral);
+                glow += mix(vec3(1.0, 0.6, 0.3), vec3(1.0, 0.92, 0.8), clamp(heat - 1.0, 0.0, 1.0))
+                    * heat * u_stream.x * exp(-dr * dr - dy * dy) * 0.35;
+            }
+        }
+    }
+
+    if (u_jets.w > 0.0) {
+        vec3 q = p - u_jets.xyz;
+        float along = abs(q.y);
+        float width = 0.15 + 0.05 * along;
+        float perp = length(q.xz) / width;
+        glow += vec3(0.6, 0.8, 1.0) * u_jets.w * exp(-perp * perp) * exp(-along / 28.0)
+            * smoothstep(0.3, 1.5, along) * 0.8;
+    }
+
+    if (u_kilonova.y > 0.0) {
+        float r = length(p);
+        float width = 0.3 * u_kilonova.x + 0.3;
+        float shell = (r - u_kilonova.x) / width;
+        if (abs(shell) < 2.5) {
+            float clumps = 2.5 * pow(fbm(p * 1.2 + 3.0, 3.0), 2.0);
+            vec3 tint = mix(vec3(0.45, 0.6, 1.0), vec3(1.0, 0.35, 0.15), u_kilonova.z);
+            glow += tint * u_kilonova.y * exp(-shell * shell) * clumps * 0.12;
+        }
+    }
+
+    return glow;
+}
+
 vec3 pulsarBeam(vec3 d, vec3 axis) {
     float along = dot(d, axis);
     float span = abs(along);
@@ -233,7 +327,7 @@ vec3 pulsarBeam(vec3 d, vec3 axis) {
         return vec3(0.0);
     float width = 0.12 + 0.06 * span;
     float perp = length(d - along * axis);
-    return vec3(0.55, 0.75, 1.0) * BEAM_INTENSITY
+    return vec3(0.55, 0.75, 1.0) * BEAM_INTENSITY * u_beams
         * exp(-perp * perp / (width * width)) * exp(-span / BEAM_LENGTH * 2.5);
 }
 
@@ -267,7 +361,10 @@ vec4 renderPixel(vec2 st) {
     vec3 a = accel(pos, vel);
     vec3 color = vec3(0.0);
     float transmittance = 1.0;
+    float nearOrigin = 1e6;
     bool captured = false;
+    bool events = u_stream.x > 0.0 || u_jets.w > 0.0 || u_kilonova.y > 0.0;
+    bool sheet = u_gw.x > 0.0 || u_burst.z > 0.0;
 
     for (int n = 0; n < MAX_STEPS; n++) {
         float nearest = 1e6;
@@ -285,6 +382,8 @@ vec4 renderPixel(vec2 st) {
             if (abs(u_kinds[i] - 1.0) < 0.5 && dot(d, d) < BEAM_LENGTH * BEAM_LENGTH)
                 color += transmittance * pulsarBeam(d, axes[i]) * dt / u_bodies[i].w;
         }
+        if (events)
+            color += transmittance * eventGlow(pos) * dt;
 
         vec3 halfVel = vel + a * (0.5 * dt);
         vec3 next = pos + halfVel * dt;
@@ -302,13 +401,20 @@ vec4 renderPixel(vec2 st) {
                 color += transmittance * disk.rgb;
                 transmittance *= 1.0 - disk.a;
             }
+            if (sheet)
+                color += transmittance * spacetimeSheet(hit, hitDir);
         }
 
         pos = next;
+        nearOrigin = min(nearOrigin, length(pos));
         for (int i = 0; i < 2; i++) {
             if (float(i) >= u_count)
                 break;
             vec3 d = pos - u_bodies[i].xyz;
+            if (abs(float(i) - u_tidal.w) < 0.5) {
+                vec3 axis = vec3(u_tidal.y, 0.0, u_tidal.z);
+                d += axis * dot(d, axis) * (1.0 / u_tidal.x - 1.0);
+            }
             float r = length(d);
             if (r < closest[i]) {
                 closest[i] = r;
@@ -357,6 +463,8 @@ vec4 renderPixel(vec2 st) {
         }
     }
 
+    color += u_flash * exp(-nearOrigin / 2.0) * vec3(1.0, 0.95, 0.9) * 1.5;
+    color *= u_fade;
     color = vec3(1.0) - exp(-color * u_exposure);
     color = pow(color, vec3(1.0 / 2.2));
     color += (hash13(vec3(st * u_resolution, 7.0)) - 0.5) / 255.0;

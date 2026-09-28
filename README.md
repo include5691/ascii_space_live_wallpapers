@@ -12,19 +12,26 @@ Light rays bend around the black hole, so the far side of the disk shows up abov
 
 - Real-time ray tracing of light around a black hole, in a GLSL shader.
 - Drawn as ASCII characters in the scene's own colors, from ` .:-+=*%#@`.
-- Six object types:
+- Seven object types:
   - a spinning black hole with an accretion disk. Spin drags space around it, which squashes the shadow into a D shape, and pulls the disk's inner edge closer, following the Kerr ISCO;
   - a lone neutron star (pulsar) with rotating hot spots and sweeping beams, and no disk, like most real pulsars;
   - a Sun-like star with limb darkening, granulation, sunspots and a corona;
   - a wormhole: its mouth bends light like a black hole, and through its throat you see another universe with a spinning spiral galaxy;
   - a ringed planet: a banded gas giant with a storm, lit by a sun, with rings that it shadows and that shadow it, and three moons on tilted orbits. Next to a star, it is lit by that star;
-  - Earth: real continents from a world map, oceans with sun glint, drifting clouds, polar ice, a blue atmosphere, city lights on the night side, the Moon with dark maria, the ISS and a Starlink train.
-- A solar system mode: eight planets with their own looks, faint orbit lines, an asteroid belt and Saturn's rings. The center is any object you pick: the Sun, a black hole, a neutron star or a wormhole. The center lights everything; a black hole, neutron star or wormhole also bends the light. Planet names can be shown in the same pixel font.
-- A Milky Way sky: a glowing band with dust lanes, a bright core, denser stars and colored nebulae, bent by every object. Or plain stars.
+  - Earth: real continents from a world map, oceans with sun glint, drifting clouds, polar ice, a blue atmosphere, city lights and green auroras on the night side, the Moon with dark maria, the ISS and a Starlink train;
+  - a quasar, shown alone: a giant black hole with a hot blue-white disk, jets with bright knots far longer than the disk, and a faint host galaxy.
+- A solar system mode: eight planets with their own looks, faint orbit lines, an asteroid belt and Saturn's rings. The Moon circles Earth, four moons circle Jupiter and Titan circles Saturn. Their shadows cross the planets, and they go dark in the planets' shadows. The center is any object you pick: the Sun, a black hole, a neutron star or a wormhole. The center lights everything; a black hole, neutron star or wormhole also bends the light. Planet names can be shown in the same pixel font.
+- A galaxy mode:
+  - a spiral galaxy with a yellow bulge, blue trailing arms and pink star-forming knots, turning slowly;
+  - two spiral galaxies colliding: a real gravity simulation of thousands of stars. They swing past each other, throw out long tidal tails, fall back and merge, then it starts again.
+- Real time: Earth's day and night follow the real clock and season, the Moon shows today's phase, and the solar system planets sit where they really are today.
+- Three skies: the Milky Way, a glowing band with dust lanes and a bright core; a pink and teal emission nebula with dark dust; or plain stars. All are bent by every black hole, neutron star and wormhole.
 - A single star lives out one of two real fates, taking turns:
   - planetary nebula: it swells into a red giant, then puffs off a glowing ring nebula, teal inside and red outside, around a tiny blue-white dwarf;
   - supernova: it swells, collapses, explodes in a flash, and leaves a newborn pulsar inside an expanding filament nebula.
+- A single neutron star with Cosmic events on is a magnetar: its twisted magnetic loops glow brighter, then a giant flare cracks the crust, shakes the star, flashes and sends out a shockwave.
 - Comets with blue ion tails and curved dust tails sweep through now and then, and meteors streak across the sky.
+- Click the empty desktop to throw a comet at the center object (not in galaxy mode). It falls in and flares the disk, the beams or the star. With a desktop icons extension, Super+Ctrl+click instead.
 - Pair mode shows two objects orbiting each other, with light bent by every black hole and neutron star. Pick any combination.
 - Pairs play out a cosmic event, then fade and start again:
 
@@ -81,13 +88,17 @@ gnome-extensions prefs space-wallpaper@include5691.github.io
 
 | Setting | Default | Range |
 | --- | --- | --- |
-| Mode | single | single, pair, solar system |
+| Mode | single | single, pair, solar system, galaxy |
 | Black hole spin | 60 % | 0 – 99 |
 | Comets and meteors | on | |
-| First object | black hole | black hole, neutron star, star, wormhole, ringed planet, Earth |
+| Object (single) | black hole | black hole, neutron star, star, wormhole, ringed planet, Earth, quasar |
+| First object (pair) | black hole | black hole, neutron star, star, wormhole, ringed planet, Earth |
 | Second object (pair) | black hole | black hole, neutron star, star, wormhole, ringed planet, Earth |
 | Center (solar system) | Sun | Sun, black hole, neutron star, wormhole |
+| Galaxy | spiral | spiral galaxy, galaxy collision |
 | Planet names (solar system) | off | |
+| Real time (Earth, solar system) | off | |
+| Throw comets | on | |
 | Speed | 100 % | 0 – 400, orbits and cosmic events |
 | Cosmic events | on | |
 | Frame rate | 30 fps | 5 – 60 |
@@ -95,7 +106,7 @@ gnome-extensions prefs space-wallpaper@include5691.github.io
 | Follow cursor | on | |
 | Sensitivity | 50 % | 0 – 200 |
 | Smoothness | 40 % | 0 – 100 |
-| Background | Milky Way | Milky Way, stars |
+| Background | Milky Way | Milky Way, stars, nebula |
 | Character size | 3 | 1 – 8 |
 | Disk rotation speed | 100 % | 0 – 400 |
 | Camera height | 8° | -30 – 60 |
@@ -116,23 +127,28 @@ GPU time per frame on an Intel Arc B390 with a 3120×2080 screen and the default
 
 At 30 fps that is 2 – 6 % of the GPU. The Milky Way adds about 0.3 ms.
 
+Galaxy mode also moves its stars on the CPU: about 3 ms per frame and monitor on a 1560×1040 screen with character size 1.
+
 ## How it works
 
 1. Each `Meta.BackgroundActor` gets a child actor that covers it.
 2. The child shows a `Clutter.Content` shared by every background on the same monitor.
 3. A timer marks the content dirty. On the next paint it renders two offscreen passes once.
 4. The scene pass traces 2×2 light rays per character cell. Each ray is stepped through the bending of space around every black hole and neutron star, and the pass finds where it crosses a disk. The disks are colored with noise, heat and Doppler shift. A neutron star has a glowing surface and two pulsar beams along its tilted, spinning magnetic axis. A star's own light bending is too small to see, so rays pass it straight until they hit its surface.
-5. The ASCII pass picks a character for each cell by brightness and draws it from a 5×7 bitmap font, in the cell's color.
-6. Each background draws the result, with the rounded corners the overview uses.
-7. While the screen is locked, the timer stops and the camera resets to the default view. The lock screen blur is turned off.
+5. In galaxy mode, the CPU moves the stars, projects them onto the character grid and uploads their light as a small texture that the scene pass adds.
+6. The ASCII pass picks a character for each cell by brightness and draws it from a 5×7 bitmap font, in the cell's color.
+7. Each background draws the result, with the rounded corners the overview uses.
+8. While the screen is locked, the timer stops and the camera resets to the default view. The lock screen blur is turned off.
 
 ## Development
 
 | File | Purpose |
 | --- | --- |
 | `extension.js` | Hooks into backgrounds, timer, settings, window cover check, lock screen |
-| `renderer.js` | Offscreen passes, camera and cursor easing |
-| `events.js` | Object layout, orbits, lighting, comets, pair events and the star life cycles |
+| `renderer.js` | Offscreen passes, camera and cursor easing, galaxy star splatting |
+| `events.js` | Object layout, orbits, lighting, comets, pair events, the star life cycles and the magnetar |
+| `galaxy.js` | Spiral galaxy and galaxy collision star particles |
+| `sky.js` | Sun, Moon and planet positions for real time |
 | `shader.js` | Scene and ASCII GLSL shaders |
 | `earthmap.js` | 256×128 land mask of the Earth |
 | `prefs.js` | Preferences window |

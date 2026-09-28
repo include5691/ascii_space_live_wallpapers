@@ -6,9 +6,10 @@
         <choice value="single"/>
         <choice value="pair"/>
         <choice value="system"/>
+        <choice value="galaxy"/>
       </choices>
       <default>'single'</default>
-      <summary>Show one object, a pair orbiting each other, or a solar system</summary>
+      <summary>Show one object, a pair orbiting each other, a solar system or a galaxy</summary>
     </key>
     <key name="first-object" type="s">
       <choices>
@@ -18,9 +19,10 @@
         <choice value="wormhole"/>
         <choice value="planet"/>
         <choice value="earth"/>
+        <choice value="quasar"/>
       </choices>
       <default>'black-hole'</default>
-      <summary>The object in single mode, and the first object of a pair</summary>
+      <summary>The object in single mode, and the first object of a pair; a quasar is shown alone only</summary>
     </key>
     <key name="second-object" type="s">
       <choices>
@@ -44,6 +46,22 @@
       <default>'star'</default>
       <summary>The object in the center of the solar system</summary>
     </key>
+    <key name="galaxy" type="s">
+      <choices>
+        <choice value="spiral"/>
+        <choice value="collision"/>
+      </choices>
+      <default>'spiral'</default>
+      <summary>Show a spiral galaxy, or two galaxies colliding</summary>
+    </key>
+    <key name="real-time" type="b">
+      <default>false</default>
+      <summary>Match Earth's day and night, the Moon's phase and the planets' positions to the real clock</summary>
+    </key>
+    <key name="click-throw" type="b">
+      <default>true</default>
+      <summary>Throw a comet at the center object by clicking the desktop</summary>
+    </key>
     <key name="spin" type="u">
       <range min="0" max="99"/>
       <default>60</default>
@@ -59,12 +77,13 @@
     </key>
     <key name="events" type="b">
       <default>true</default>
-      <summary>Play cosmic events: mergers, devoured stars and supernovae</summary>
+      <summary>Play cosmic events: mergers, devoured stars, supernovae and magnetar flares</summary>
     </key>
     <key name="background" type="s">
       <choices>
         <choice value="stars"/>
         <choice value="milky-way"/>
+        <choice value="nebula"/>
       </choices>
       <default>'milky-way'</default>
       <summary>Sky behind the objects</summary>

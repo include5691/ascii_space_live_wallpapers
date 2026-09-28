@@ -17,14 +17,19 @@ const radians = degrees => degrees * Math.PI / 180;
 const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
 
 function readOptions(settings) {
+    const mode = settings.get_string('mode');
+    const first = settings.get_string('first-object');
     return {
         charSize: settings.get_uint('char-size'),
-        system: settings.get_string('mode') === 'system',
+        mode,
         labels: settings.get_boolean('labels'),
         objects: {
-            pair: [settings.get_string('first-object'), settings.get_string('second-object')],
+            pair: [first === 'quasar' ? 'black-hole' : first, settings.get_string('second-object')],
             system: [settings.get_string('center')],
-        }[settings.get_string('mode')] ?? [settings.get_string('first-object')],
+            galaxy: [settings.get_string('galaxy')],
+        }[mode] ?? [first],
+        realTime: settings.get_boolean('real-time'),
+        throwComets: settings.get_boolean('click-throw'),
         orbitSpeed: settings.get_uint('orbit-speed') / 100,
         events: settings.get_boolean('events'),
         background: settings.get_string('background'),
@@ -56,6 +61,8 @@ function* findBackgroundActors(actor) {
 
 function isDesktopAt(x, y) {
     let actor = global.stage.get_actor_at_pos(Clutter.PickMode.REACTIVE, x, y);
+    if (actor === global.stage)
+        return true;
     for (; actor; actor = actor.get_parent()) {
         if (actor instanceof Meta.BackgroundActor)
             return true;
@@ -113,6 +120,7 @@ export default class SpaceWallpaperExtension extends Extension {
         global.stage.connectObject(
             'captured-event::scroll', (stage, event) => this._onScroll(event),
             'captured-event::touchpad', (stage, event) => this._onPinch(event),
+            'captured-event::button', (stage, event) => this._onClick(event),
             this);
         this._settings.connectObject('changed', (settings, key) => this._onSettingChanged(key), this);
         this._syncLock();
@@ -242,6 +250,19 @@ export default class SpaceWallpaperExtension extends Extension {
             this._pinchStartZoom = 0;
         }
         return Clutter.EVENT_PROPAGATE;
+    }
+
+    _onClick(event) {
+        if (event.type() !== Clutter.EventType.BUTTON_PRESS || event.get_button() !== Clutter.BUTTON_PRIMARY ||
+            !this._options.throwComets || !canZoom())
+            return Clutter.EVENT_PROPAGATE;
+        const [x, y] = event.get_coords();
+        if (!isDesktopAt(x, y))
+            return Clutter.EVENT_PROPAGATE;
+        const index = global.display.get_current_monitor();
+        const monitor = Main.layoutManager.monitors[index];
+        this._contents[index]?.throwAt((x - monitor.x) / monitor.width, (y - monitor.y) / monitor.height);
+        return hasZoomModifiers(event) ? Clutter.EVENT_STOP : Clutter.EVENT_PROPAGATE;
     }
 
     _setZoom(value) {

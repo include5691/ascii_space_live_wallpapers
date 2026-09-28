@@ -8,6 +8,7 @@ const MODES = [
     ['single', 'Single'],
     ['pair', 'Pair'],
     ['system', 'Solar system'],
+    ['galaxy', 'Galaxy'],
 ];
 
 const OBJECTS = [
@@ -17,6 +18,13 @@ const OBJECTS = [
     ['wormhole', 'Wormhole'],
     ['planet', 'Ringed planet'],
     ['earth', 'Earth'],
+];
+
+const SINGLE_OBJECTS = [...OBJECTS, ['quasar', 'Quasar']];
+
+const GALAXIES = [
+    ['spiral', 'Spiral galaxy'],
+    ['collision', 'Galaxy collision'],
 ];
 
 const CENTERS = [
@@ -37,8 +45,9 @@ const EVENT_PAIRS = new Set([
 function selectedObjects(settings) {
     const first = settings.get_string('first-object');
     return {
-        pair: [first, settings.get_string('second-object')],
+        pair: [first === 'quasar' ? 'black-hole' : first, settings.get_string('second-object')],
         system: [settings.get_string('center')],
+        galaxy: [],
     }[settings.get_string('mode')] ?? [first];
 }
 
@@ -49,7 +58,9 @@ function isSystem(settings) {
 function hasEvents(objects, system = false) {
     if (system)
         return false;
-    return objects.length === 1 ? objects[0] === 'star' : EVENT_PAIRS.has([...objects].sort().join('+'));
+    if (objects.length === 1)
+        return objects[0] === 'star' || objects[0] === 'neutron-star';
+    return EVENT_PAIRS.has([...objects].sort().join('+'));
 }
 
 function isNeutronStarPair(objects) {
@@ -57,7 +68,7 @@ function isNeutronStarPair(objects) {
 }
 
 function hasBlackHole(objects, events) {
-    return objects.includes('black-hole') || (events && isNeutronStarPair(objects));
+    return objects.includes('black-hole') || objects.includes('quasar') || (events && isNeutronStarPair(objects));
 }
 
 function hasDisk(objects, events) {
@@ -68,6 +79,7 @@ function hasDisk(objects, events) {
 const BACKGROUNDS = [
     ['milky-way', 'Milky Way'],
     ['stars', 'Stars'],
+    ['nebula', 'Nebula'],
 ];
 
 function connectSetting(settings, key, widget, callback) {
@@ -94,12 +106,18 @@ function comboRow(settings, key, title, options) {
         title,
         model: Gtk.StringList.new(options.map(([, label]) => label)),
     });
+    let syncing = false;
     const sync = () => {
+        syncing = true;
         row.selected = Math.max(options.findIndex(([value]) => value === settings.get_string(key)), 0);
+        syncing = false;
     };
     sync();
     connectSetting(settings, key, row, sync);
-    row.connect('notify::selected', () => settings.set_string(key, options[row.selected][0]));
+    row.connect('notify::selected', () => {
+        if (!syncing)
+            settings.set_string(key, options[row.selected][0]);
+    });
     return row;
 }
 
@@ -123,18 +141,29 @@ export default class SpaceWallpaperPreferences extends ExtensionPreferences {
         const secondObject = comboRow(settings, 'second-object', 'Second object', OBJECTS);
         const orbitSpeed = spinRow(settings, 'orbit-speed', 'Speed', 'Orbits and cosmic events, in percent');
         objects.add(comboRow(settings, 'mode', 'Mode', MODES));
+        const singleObject = comboRow(settings, 'first-object', 'Object', SINGLE_OBJECTS);
         const firstObject = comboRow(settings, 'first-object', 'First object', OBJECTS);
         const center = comboRow(settings, 'center', 'Center', CENTERS);
+        const galaxy = comboRow(settings, 'galaxy', 'Galaxy', GALAXIES);
         const labels = switchRow(settings, 'labels', 'Planet names');
+        const realTime = switchRow(settings, 'real-time', 'Real time',
+            "Earth's day and night, the Moon's phase and the planets follow the real clock");
+        const comets = switchRow(settings, 'comets', 'Comets and meteors');
+        objects.add(singleObject);
         objects.add(firstObject);
         objects.add(center);
+        objects.add(galaxy);
         objects.add(secondObject);
         objects.add(orbitSpeed);
         const spin = spinRow(settings, 'spin', 'Black hole spin', 'Percent of the maximum; drags space and squashes the shadow');
-        const events = switchRow(settings, 'events', 'Cosmic events', 'Mergers, devoured stars and supernovae');
+        const events = switchRow(settings, 'events', 'Cosmic events', 'Mergers, devoured stars, supernovae and magnetar flares');
         objects.add(spin);
         objects.add(labels);
-        objects.add(switchRow(settings, 'comets', 'Comets and meteors'));
+        objects.add(realTime);
+        objects.add(comets);
+        const throwComets = switchRow(settings, 'click-throw', 'Throw comets',
+            'Click the empty desktop, or Super+Ctrl+click over desktop icons');
+        objects.add(throwComets);
         objects.add(events);
 
         const performance = new Adw.PreferencesGroup({title: 'Performance'});
@@ -175,13 +204,19 @@ export default class SpaceWallpaperPreferences extends ExtensionPreferences {
         const syncObjectRows = () => {
             const selected = selectedObjects(settings);
             const pair = selected.length === 2;
+            const mode = settings.get_string('mode');
             const system = isSystem(settings);
             const eventsOn = settings.get_boolean('events') && !system;
-            firstObject.set_visible(!system);
+            singleObject.set_visible(mode === 'single');
+            firstObject.set_visible(mode === 'pair');
             center.set_visible(system);
-            secondObject.set_sensitive(pair);
+            galaxy.set_visible(mode === 'galaxy');
+            secondObject.set_visible(mode === 'pair');
             labels.set_sensitive(system);
-            orbitSpeed.set_sensitive(pair || system || (eventsOn && hasEvents(selected)));
+            realTime.set_sensitive(system || selected.includes('earth'));
+            comets.set_sensitive(mode !== 'galaxy');
+            throwComets.set_sensitive(mode !== 'galaxy');
+            orbitSpeed.set_sensitive(pair || system || mode === 'galaxy' || (eventsOn && hasEvents(selected)));
             spin.set_sensitive(hasBlackHole(selected, eventsOn));
             events.set_sensitive(hasEvents(selected, system));
             const disk = hasDisk(selected, eventsOn);

@@ -34,6 +34,14 @@ uniform vec4 u_planets[8];
 uniform float u_system;
 uniform vec4 u_belt;
 uniform float u_distance;
+uniform vec4 u_live;
+uniform float u_moon_tilt;
+uniform vec4 u_moons[6];
+uniform float u_moon_hosts[6];
+uniform vec4 u_magnetar;
+uniform float u_quasar;
+uniform sampler2D galaxy_map;
+uniform float u_galaxy;
 
 const float PI = 3.14159265;
 const float SPIN = 2.6;
@@ -56,6 +64,12 @@ const float ORBIT_LINE_GAIN = 0.3;
 const float ORBIT_LINE_WIDTH = 0.4;
 const vec3 EARTH_AXIS = vec3(0.26, 0.94, 0.2);
 const vec3 SATURN_AXIS = vec3(0.12, 0.95, 0.28);
+const vec3 AURORA_COLOR = vec3(0.25, 1.0, 0.5);
+const vec3 MAGNETIC_POLE = vec3(0.048, 0.987, 0.154);
+const float AURORA_LATITUDE = 1.16;
+const vec3 NEBULA_CENTER = vec3(-0.45, -0.2, -1.0);
+const float QUASAR_JET_REACH = 90.0;
+const float GALAXY_RANGE = 4.0;
 const float LINGER_RADIUS = 2.4;
 const float BEAM_LENGTH = 14.0;
 const float BEAM_INTENSITY = 0.35;
@@ -68,6 +82,10 @@ const float TIME_PERIOD = 256.0;
 const int MAX_STEPS = 300;
 const float STEP_SCALE = 0.07;
 const float OCTAVES = 5.0;
+
+float square(float x) {
+    return x * x;
+}
 
 float hash13(vec3 p) {
     p = fract(p * 0.1031);
@@ -166,7 +184,8 @@ vec4 diskSample(vec3 p, vec3 dir, vec4 extent) {
     float shift = doppler * sqrt(max(1.0 - 1.0 / r, 0.05));
 
     float heat = pow(HEAT_RADIUS / r, 0.7);
-    vec3 color = diskColor(clamp(heat * mix(1.0, shift, u_doppler * 0.6), 0.0, 1.0));
+    vec3 color = diskColor(clamp(heat * mix(1.0, shift, u_doppler * 0.6) + 0.3 * u_quasar, 0.0, 1.0));
+    color = mix(color, vec3(0.75, 0.85, 1.0) * length(color), 0.7 * u_quasar);
     float intensity = 7.0 * pow(HEAT_RADIUS / r, 2.5) * pow(shift, 4.0 * u_doppler);
     float dust = mix(1.0, 0.25, smoothstep(0.45, 0.75, pattern.y)) * mix(0.4, 1.0, smoothstep(0.2, 0.8, n));
 
@@ -174,7 +193,8 @@ vec4 diskSample(vec3 p, vec3 dir, vec4 extent) {
     float haze = smoothstep(inner * 1.1, inner * 2.0, r) * (1.0 - smoothstep(outer * 0.3, outer, r))
         * pow(inner / r, 1.6) * 0.025 / max(abs(dir.y), 0.1);
     float gain = extent.z;
-    return vec4((color * intensity * dust * alpha + vec3(1.0, 0.55, 0.28) * haze) * gain, alpha * min(gain, 1.0));
+    vec3 hazeColor = mix(vec3(1.0, 0.55, 0.28), vec3(0.6, 0.7, 1.0), u_quasar);
+    return vec4((color * intensity * dust * alpha + hazeColor * haze) * gain, alpha * min(gain, 1.0));
 }
 
 vec2 cubeFace(vec3 d, out float face) {
@@ -250,6 +270,27 @@ vec4 milkyWay(vec3 d) {
     return vec4(glow, band);
 }
 
+vec4 emissionNebula(vec3 d) {
+    vec3 center = normalize(NEBULA_CENTER);
+    float facing = dot(d, center);
+    vec3 base = nebula(d);
+    if (facing < 0.82)
+        return vec4(base, 0.0);
+    vec3 q = (d - center * facing) / facing;
+    float r2 = dot(q, q);
+    float shape = exp(-r2 / 0.07);
+    vec3 p = d * 5.0;
+    float gas = fbm(p + 2.0, 5.0);
+    float wisps = fbm(p * 2.3 + gas * 1.5, 4.0);
+    float body = smoothstep(0.4, 0.8, 0.55 * gas + 0.55 * wisps + 0.25 * shape);
+    float dust = smoothstep(0.52, 0.72, fbm(p * 3.1 + 9.0, 4.0));
+    float core = exp(-r2 / 0.01);
+    vec3 glow = vec3(0.95, 0.25, 0.42) * body * shape * 0.7 + vec3(0.25, 0.8, 0.8) * core * wisps * 0.7;
+    glow *= 1.0 - 0.7 * dust * smoothstep(0.1, 0.5, shape);
+    glow += vec3(1.0, 0.92, 0.96) * exp(-r2 / 0.0006) * 0.5;
+    return vec4(base + glow, shape * 1.5);
+}
+
 vec3 otherSky(vec3 d, vec2 du, vec2 dv) {
     vec3 galaxy = normalize(vec3(0.3, 0.15, 1.0));
     float turn = 2.0 * PI * u_time / TIME_PERIOD;
@@ -320,7 +361,26 @@ vec3 neutronSurface(vec3 n, vec3 view, float index) {
     float grain = fbm(local * 6.0 + index * 11.0, 3.0);
     float spot = pow(abs(dot(n, magneticAxis(index))), 10.0);
     float limb = mix(0.35, 1.0, clamp(dot(n, -view), 0.0, 1.0));
-    return vec3(0.62, 0.78, 1.0) * (0.45 + 0.6 * grain + 3.5 * spot) * limb;
+    float cracks = 1.0 - smoothstep(0.0, 0.06, abs(noise3(local * 5.0 + 3.0) - 0.5));
+    return vec3(0.62, 0.78, 1.0) * (0.45 + 0.6 * grain + 3.5 * spot) * limb
+        + vec3(0.9, 0.75, 1.0) * cracks * u_magnetar.y * 4.0;
+}
+
+vec3 fieldLoops(vec3 d, vec3 axis) {
+    float r = length(d);
+    if (r < NEUTRON_RADIUS || r > NEUTRON_RADIUS * 5.0)
+        return vec3(0.0);
+    float c = dot(d, axis) / r;
+    float s2 = 1.0 - c * c;
+    float glow = 0.0;
+    for (int k = 0; k < 3; k++) {
+        float gap = (r - NEUTRON_RADIUS * (1.7 + 0.9 * float(k)) * s2) / (0.05 * r);
+        glow += exp(-gap * gap);
+    }
+    vec3 side = normalize(vec3(-axis.z, 0.0, axis.x));
+    float phi = atan(dot(d, cross(axis, side)), dot(d, side));
+    float lines = pow(0.5 + 0.5 * cos(phi * 6.0), 12.0);
+    return vec3(0.75, 0.55, 1.0) * glow * lines * u_magnetar.x * 0.06;
 }
 
 vec3 starSurface(vec3 n, vec3 view, float index) {
@@ -381,10 +441,12 @@ vec3 eventGlow(vec3 p) {
     if (u_jets.w > 0.0) {
         vec3 q = p - u_jets.xyz;
         float along = abs(q.y);
-        float width = 0.15 + 0.05 * along;
+        float width = mix(0.15 + 0.05 * along, 0.3 + 0.035 * along, u_quasar);
         float perp = length(q.xz) / width;
-        glow += vec3(0.6, 0.8, 1.0) * u_jets.w * exp(-perp * perp) * exp(-along / 28.0)
-            * smoothstep(0.3, 1.5, along) * 0.8;
+        float reach = mix(28.0, QUASAR_JET_REACH, u_quasar);
+        float knots = mix(1.0, 0.5 + 1.5 * pow(0.5 + 0.5 * sin(along * 0.45 - 2.0 * PI * u_time / TIME_PERIOD * 24.0), 6.0), u_quasar);
+        glow += vec3(0.6, 0.8, 1.0) * u_jets.w * exp(-perp * perp) * exp(-along / reach)
+            * smoothstep(0.3, 1.5, along) * knots * mix(1.0, 0.35 / width, u_quasar) * 0.8;
     }
 
     if (u_kilonova.y > 0.0) {
@@ -395,11 +457,11 @@ vec3 eventGlow(vec3 p) {
         float shell = (r - u_kilonova.x) / width;
         if (planetary) {
             vec3 axis = normalize(vec3(0.2, 0.35, 1.0));
-            float equator = exp(-pow(dot(p, axis) / max(r, 1e-3), 2.0) / 0.12);
-            float wall = exp(-pow((r - u_kilonova.x) / (0.15 * u_kilonova.x), 2.0));
+            float equator = exp(-square(dot(p, axis) / max(r, 1e-3)) / 0.12);
+            float wall = exp(-square((r - u_kilonova.x) / (0.15 * u_kilonova.x)));
             float knots = 0.6 + 0.8 * fbm(p * 1.4 + 9.0, 3.0);
             vec3 rim = vec3(1.0, 0.28, 0.35) * wall * (0.08 + 1.2 * equator) * knots;
-            vec3 core = vec3(0.2, 0.85, 0.8) * exp(-pow(r / (0.7 * u_kilonova.x), 2.0)) * 0.35;
+            vec3 core = vec3(0.2, 0.85, 0.8) * exp(-square(r / (0.7 * u_kilonova.x))) * 0.35;
             glow += u_kilonova.y * (rim + core) * 0.12;
         } else if (abs(shell) < 2.5) {
             if (remnant) {
@@ -422,12 +484,17 @@ vec3 lightFrom(vec3 p) {
     return u_light.w > 0.5 ? normalize(u_light.xyz - p) : u_light.xyz;
 }
 
+vec3 quasarHost(vec3 p) {
+    float r = length(p * vec3(1.0, 2.2, 1.0));
+    return vec3(1.0, 0.85, 0.65) * exp(-r / 9.0) * 0.004;
+}
+
 float ringDensity(float r) {
     float span = (r - RING_INNER) / (RING_OUTER - RING_INNER);
     if (span < 0.0 || span > 1.0)
         return 0.0;
     float ringlets = 0.55 + 0.45 * sin(span * 90.0 + 3.0 * noise3(vec3(span * 25.0, 1.0, 2.0)));
-    float cassini = 1.0 - 0.95 * exp(-pow((span - 0.62) / 0.03, 2.0));
+    float cassini = 1.0 - 0.95 * exp(-square((span - 0.62) / 0.03));
     float edges = smoothstep(0.0, 0.05, span) * (1.0 - smoothstep(0.9, 1.0, span));
     return ringlets * cassini * edges * mix(0.5, 1.0, span);
 }
@@ -480,9 +547,47 @@ vec3 planetSurface(vec3 n, vec3 p, vec3 view, vec3 center, float scale, float in
     return u_light_color * (color * (0.03 + 1.6 * diffuse) + vec3(0.35, 0.5, 0.8) * rim * diffuse * 0.4);
 }
 
-vec3 earthSurface(vec3 n, vec3 p, vec3 view, float index) {
+vec3 earthAxis(vec3 light) {
     vec3 axis = normalize(EARTH_AXIS);
-    float spin = -2.0 * PI * (u_time / TIME_PERIOD * EARTH_TURNS + index * 0.3);
+    if (u_live.x < 0.5)
+        return axis;
+    vec3 across = axis - light * dot(axis, light);
+    float size = length(across);
+    return size < 1e-3 ? axis : across / size * cos(u_live.w) + light * sin(u_live.w);
+}
+
+float earthSpin(vec3 axis, vec3 light, float index) {
+    if (u_live.x < 0.5)
+        return -2.0 * PI * (u_time / TIME_PERIOD * EARTH_TURNS + index * 0.3);
+    vec3 facing = bodyFrame(light, axis, 0.0);
+    return u_live.y - atan(-facing.z, facing.x);
+}
+
+float aurora(vec3 local, float seed) {
+    float longitude = atan(-local.z, local.x);
+    float latitude = asin(clamp(dot(local, MAGNETIC_POLE), -1.0, 1.0));
+    float drift = 2.0 * PI * u_time / TIME_PERIOD;
+    float wave = 0.05 * sin(longitude * 5.0 + 14.0 * drift) + 0.02 * sin(longitude * 13.0 - 30.0 * drift);
+    float oval = exp(-square((abs(latitude) - AURORA_LATITUDE - wave) / 0.06));
+    float around = longitude + 9.0 * drift;
+    float curtains = 0.3 + 0.9 * noise3(vec3(cos(around) * 4.0, sin(around) * 4.0, latitude * 6.0 + seed));
+    return oval * curtains;
+}
+
+float eclipseBy(vec3 p, vec3 blocker, float radius) {
+    vec3 light = lightFrom(p);
+    vec3 toBlocker = blocker - p;
+    float along = dot(toBlocker, light);
+    if (along <= 0.0 || (u_light.w > 0.5 && along > length(u_light.xyz - p)))
+        return 1.0;
+    return mix(0.06, 1.0, smoothstep(radius * 0.6, radius * 1.3, length(toBlocker - light * along)));
+}
+
+vec3 earthSurface(vec3 n, vec3 p, vec3 view, float index, float shade, vec3 center) {
+    vec3 light = lightFrom(p);
+    vec3 sun = lightFrom(center);
+    vec3 axis = earthAxis(sun);
+    float spin = earthSpin(axis, sun, index);
     vec3 local = bodyFrame(n, axis, spin);
     float latitude = asin(clamp(local.y, -1.0, 1.0));
     float longitude = atan(-local.z, local.x);
@@ -498,19 +603,19 @@ vec3 earthSurface(vec3 n, vec3 p, vec3 view, float index) {
     float ice = max(smoothstep(1.12, 1.22, polar), smoothstep(1.0, 1.1, polar) * coast);
     vec3 albedo = mix(mix(ocean, ground, coast), vec3(0.92, 0.95, 1.0), ice);
 
-    vec3 sky = bodyFrame(n, axis, spin * 0.75 + 2.0 * PI * u_time / TIME_PERIOD);
+    vec3 sky = bodyFrame(n, axis, (u_live.x > 0.5 ? spin : spin * 0.75) + 2.0 * PI * u_time / TIME_PERIOD);
     float clouds = smoothstep(0.6, 0.8, fbm(sky * vec3(3.0, 6.0, 3.0) + 7.0 + index, 4.0));
     albedo = mix(albedo, vec3(0.95), clouds * 0.7);
 
-    vec3 light = lightFrom(p);
     float mu = dot(n, light);
     float glint = pow(max(dot(n, normalize(light - view)), 0.0), 60.0) * (1.0 - coast) * (1.0 - clouds) * (1.0 - ice);
-    float night = 1.0 - smoothstep(-0.15, 0.05, mu);
+    float night = 1.0 - smoothstep(-0.15, 0.05, mu * shade);
     float cities = coast * (1.0 - ice) * (1.0 - clouds) * pow(noise3(local * 45.0), 4.0) * 6.0;
     float rim = pow(1.0 - clamp(dot(n, -view), 0.0, 1.0), 3.0);
-    return u_light_color * (albedo * (0.02 + 1.5 * max(mu, 0.0)) + vec3(1.0, 0.95, 0.85) * glint * 1.5
+    float lights = aurora(local, index) * (1.0 - smoothstep(-0.2, 0.15, mu));
+    return u_light_color * shade * (albedo * (0.02 + 1.5 * max(mu, 0.0)) + vec3(1.0, 0.95, 0.85) * glint * 1.5
         + vec3(0.35, 0.6, 1.0) * rim * smoothstep(-0.2, 0.4, mu) * 0.8)
-        + vec3(1.0, 0.72, 0.35) * cities * night * 0.35;
+        + vec3(1.0, 0.72, 0.35) * cities * night * 0.35 + AURORA_COLOR * lights * 1.6;
 }
 
 float sunlit(vec3 point, vec3 center, float radius) {
@@ -525,13 +630,22 @@ vec3 cratered(vec3 n, vec3 p, vec3 base, float seed) {
     return u_light_color * base * craters * (0.02 + 1.4 * max(dot(n, lightFrom(p)), 0.0));
 }
 
+vec3 earthMoonCenter(vec3 center, float scale) {
+    float reach = EARTH_RADIUS * scale * (u_count > 1.5 ? 2.2 : 3.4);
+    float angle = -2.0 * PI * (u_time / TIME_PERIOD * 3.0 + 0.2);
+    if (u_live.x < 0.5)
+        return center + vec3(cos(angle), 0.09 * sin(angle), sin(angle)) * reach;
+    vec3 light = lightFrom(center);
+    angle = atan(light.z, light.x) - 2.0 * PI * u_live.z;
+    return center + vec3(cos(angle) * cos(u_moon_tilt), sin(u_moon_tilt), sin(angle) * cos(u_moon_tilt)) * reach;
+}
+
 vec4 earthMoonHit(vec3 from, vec3 to, vec3 center, float scale) {
     vec3 segment = to - from;
     float span = length(segment);
     vec3 dir = segment / span;
     float radius = EARTH_RADIUS * scale;
-    float angle = 2.0 * PI * (u_time / TIME_PERIOD * 3.0 + 0.2);
-    vec3 moon = center + vec3(cos(angle), 0.09 * sin(angle), sin(angle)) * radius * (u_count > 1.5 ? 2.2 : 3.4);
+    vec3 moon = earthMoonCenter(center, scale);
     float t = sphereEntry(from, dir, span, moon, radius * 0.27);
     if (t < 0.0)
         return vec4(0.0);
@@ -562,9 +676,35 @@ vec3 satelliteGlow(vec3 p, vec3 center, float scale) {
     return glow * u_light_color;
 }
 
+float moonShade(vec3 p) {
+    float shade = 1.0;
+    for (int k = 0; k < 6; k++)
+        if (u_moons[k].w > 0.0)
+            shade = min(shade, eclipseBy(p, u_moons[k].xyz, u_moons[k].w));
+    return shade;
+}
+
+vec4 planetAt(float index) {
+    vec4 planet = vec4(0.0);
+    for (int k = 0; k < 8; k++)
+        if (abs(float(k) - index) < 0.5)
+            planet = u_planets[k];
+    return planet;
+}
+
+vec3 systemMoonSurface(float k, vec3 n, vec3 p, vec3 center) {
+    float host = 0.0;
+    for (int j = 0; j < 6; j++)
+        if (abs(float(j) - k) < 0.5)
+            host = u_moon_hosts[j];
+    vec4 planet = planetAt(host);
+    vec3 base = abs(host - 2.0) < 0.5 ? vec3(0.72, 0.7, 0.66) : mix(vec3(0.85, 0.75, 0.5), vec3(0.6, 0.62, 0.66), fract(k * 0.37));
+    return cratered(n, p, base, k) * eclipseBy(center, planet.xyz, planet.w);
+}
+
 vec3 systemPlanetSurface(float k, vec3 n, vec3 p, vec3 view, vec3 center, float radius) {
     if (abs(k - 2.0) < 0.5)
-        return earthSurface(n, p, view, 7.0);
+        return earthSurface(n, p, view, 7.0, moonShade(p), center);
     vec3 axis = abs(k - 5.0) < 0.5 ? normalize(SATURN_AXIS) : vec3(0.0, 1.0, 0.0);
     vec3 local = bodyFrame(n, axis, 2.0 * PI * u_time / TIME_PERIOD * (12.0 - k));
     vec3 albedo;
@@ -583,7 +723,7 @@ vec3 systemPlanetSurface(float k, vec3 n, vec3 p, vec3 view, vec3 center, float 
         albedo = vec3(0.55, 0.85, 0.9) * (0.9 + 0.1 * local.y);
     else
         albedo = mix(vec3(0.2, 0.33, 0.9), vec3(0.35, 0.5, 1.0), 0.5 + 0.5 * sin(local.y * 12.0));
-    float diffuse = max(dot(n, lightFrom(p)), 0.0);
+    float diffuse = max(dot(n, lightFrom(p)), 0.0) * moonShade(p);
     if (abs(k - 5.0) < 0.5)
         diffuse *= ringShadow(p, center, axis, radius);
     return u_light_color * albedo * (0.02 + 1.5 * diffuse);
@@ -595,6 +735,9 @@ bool planetAhead(vec3 from, vec3 to) {
     for (int k = 0; k < 8; k++)
         if (sphereEntry(from, segment / span, span, u_planets[k].xyz, u_planets[k].w) >= 0.0)
             return true;
+    for (int k = 0; k < 6; k++)
+        if (u_moons[k].w > 0.0 && sphereEntry(from, segment / span, span, u_moons[k].xyz, u_moons[k].w) >= 0.0)
+            return true;
     return false;
 }
 
@@ -603,7 +746,7 @@ vec3 systemPlane(vec3 hit, vec3 dir) {
     float view = 0.25 / max(abs(dir.y), 0.2);
     float lines = 0.0;
     for (int k = 0; k < 8; k++)
-        lines += exp(-pow((r - length(u_planets[k].xz)) / ORBIT_LINE_WIDTH, 2.0));
+        lines += exp(-square((r - length(u_planets[k].xz)) / ORBIT_LINE_WIDTH));
     vec3 glow = vec3(0.4, 0.45, 0.6) * lines * ORBIT_LINE_GAIN * view;
     if (r > u_belt.x && r < u_belt.y) {
         float turns = fract(atan(hit.z, hit.x) / (2.0 * PI) + 2.0 * u_time / TIME_PERIOD);
@@ -793,7 +936,11 @@ vec4 renderPixel(vec2 st) {
                 color += transmittance * satelliteGlow(pos, u_bodies[i].xyz, u_bodies[i].w) * dt;
             if (abs(u_kinds[i] - 1.0) < 0.5 && dot(d, d) < BEAM_LENGTH * BEAM_LENGTH)
                 color += transmittance * pulsarBeam(d, axes[i]) * dt / u_bodies[i].w;
+            if (abs(u_kinds[i] - 1.0) < 0.5 && u_magnetar.x > 0.0)
+                color += transmittance * fieldLoops(d, axes[i]) * dt / u_bodies[i].w;
         }
+        if (u_quasar > 0.5)
+            color += transmittance * quasarHost(pos) * dt;
         if (events)
             color += transmittance * eventGlow(pos) * dt;
         if (comet)
@@ -875,7 +1022,27 @@ vec4 renderPixel(vec2 st) {
                     hitPlanet = float(k);
                 }
             }
-            if (hitPlanet >= 0.0) {
+            float hitMoon = -1.0;
+            for (int k = 0; k < 6; k++) {
+                if (u_moons[k].w <= 0.0)
+                    continue;
+                float t = sphereEntry(pos, sdir, span, u_moons[k].xyz, u_moons[k].w);
+                if (t >= 0.0 && t < best) {
+                    best = t;
+                    hitMoon = float(k);
+                }
+            }
+            if (hitMoon >= 0.0) {
+                for (int k = 0; k < 6; k++) {
+                    if (abs(float(k) - hitMoon) > 0.5)
+                        continue;
+                    vec3 hitPoint = pos + sdir * best;
+                    color += transmittance * systemMoonSurface(hitMoon, normalize(hitPoint - u_moons[k].xyz), hitPoint, u_moons[k].xyz);
+                }
+                captured = true;
+                capturedBy = 20.0 + hitMoon;
+                centerInFront = dot(pos - u_bodies[0].xyz, sdir) > 0.0;
+            } else if (hitPlanet >= 0.0) {
                 for (int k = 0; k < 8; k++) {
                     if (abs(float(k) - hitPlanet) > 0.5)
                         continue;
@@ -918,7 +1085,8 @@ vec4 renderPixel(vec2 st) {
                 captured = true;
                 capturedBy = float(i);
             } else if (u_kinds[i] > 4.5 && r < EARTH_RADIUS * u_bodies[i].w) {
-                color += transmittance * earthSurface(d / r, pos, normalize(vel), float(i));
+                float shade = eclipseBy(pos, earthMoonCenter(u_bodies[i].xyz, u_bodies[i].w), EARTH_RADIUS * u_bodies[i].w * 0.27);
+                color += transmittance * earthSurface(d / r, pos, normalize(vel), float(i), shade, u_bodies[i].xyz);
                 captured = true;
                 capturedBy = float(i);
             } else if (abs(u_kinds[i] - 4.0) < 0.5 && r < PLANET_RADIUS * u_bodies[i].w) {
@@ -947,7 +1115,7 @@ vec4 renderPixel(vec2 st) {
     if (through) {
         color += transmittance * otherSky(portal, du, dv);
     } else if (!captured) {
-        vec4 galaxy = u_background > 0.5 ? milkyWay(escape) : vec4(nebula(escape), 0.0);
+        vec4 galaxy = u_background > 1.5 ? emissionNebula(escape) : u_background > 0.5 ? milkyWay(escape) : vec4(nebula(escape), 0.0);
         color += transmittance * (galaxy.rgb + starfield(sky, face, du, dv, 1.0 + 4.0 * galaxy.a, 0.0));
         if (u_meteors > 0.5)
             color += transmittance * meteor(escape);
@@ -972,6 +1140,12 @@ vec4 renderPixel(vec2 st) {
             float air = exp(-(closest[i] / (EARTH_RADIUS * scale) - 1.0) * 30.0)
                 * smoothstep(-0.25, 0.35, dot(limb, lightFrom(u_bodies[i].xyz + nearPoint[i])));
             color += nearTransmittance[i] * u_light_color * vec3(0.35, 0.6, 1.0) * air * 0.35;
+            vec3 sun = lightFrom(u_bodies[i].xyz);
+            vec3 axis = earthAxis(sun);
+            float height = closest[i] / (EARTH_RADIUS * scale) - 1.0;
+            float curtain = aurora(bodyFrame(limb, axis, earthSpin(axis, sun, float(i))), float(i)) * exp(-height * 25.0)
+                * (1.0 - smoothstep(-0.2, 0.2, dot(limb, lightFrom(u_bodies[i].xyz + nearPoint[i]))));
+            color += nearTransmittance[i] * AURORA_COLOR * curtain * 0.9;
         } else if (abs(u_kinds[i] - 3.0) < 0.5 && closest[i] > WORMHOLE_THROAT * scale) {
             float rim = exp(-(closest[i] / (WORMHOLE_THROAT * scale) - 1.0) * 12.0);
             color += nearTransmittance[i] * vec3(0.6, 0.75, 1.0) * rim * 0.8;
@@ -981,6 +1155,10 @@ vec4 renderPixel(vec2 st) {
         }
     }
 
+    if (u_galaxy > 0.5) {
+        vec3 stars = texture2D(galaxy_map, st).rgb;
+        color += stars * stars * GALAXY_RANGE;
+    }
     color += u_flash * exp(-nearOrigin / 2.0) * vec3(1.0, 0.95, 0.9) * 1.5;
     color *= u_fade;
     color = vec3(1.0) - exp(-color * u_exposure);

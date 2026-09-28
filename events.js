@@ -12,6 +12,7 @@ const BLACK_HOLE_DISK_INNER = 2.1;
 const NEUTRON_DISK_INNER = 5.5;
 const NEUTRON_RADIUS = 2.5;
 const STAR_RADIUS = 5;
+const WORMHOLE_THROAT = 2.4;
 const ANGULAR_SPEED = 2 * Math.PI / 60;
 const MIN_SEPARATION = 2.6;
 const INSPIRAL_TIME = 75;
@@ -197,6 +198,7 @@ export class Scene {
             belt: [0, 0, 0, 0],
             distance: 22,
             lift: 0,
+            centerRadius: 0,
         };
         switch (this._scenario) {
         case 'single':
@@ -282,6 +284,8 @@ export class Scene {
         });
         state.system = 1;
         state.belt = [...SYSTEM_BELT, 1, 0];
+        state.centerRadius = {'star': STAR_RADIUS, 'black-hole': BLACK_HOLE_SHADOW,
+            'neutron-star': NEUTRON_RADIUS, 'wormhole': WORMHOLE_THROAT}[kind] * center.scale;
         state.distance = SYSTEM_DISTANCE;
         state.lift = SYSTEM_LIFT;
         state.fov = SYSTEM_FOV;

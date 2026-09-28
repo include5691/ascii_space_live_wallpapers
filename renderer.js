@@ -129,6 +129,7 @@ function projector({yaw, pitch, roll, distance, fov, aspect}) {
             x: dot(relative, rolledRight) / (depth * fov) / (2 * aspect) + 0.5,
             y: 0.5 - dot(relative, rolledUp) / (depth * fov) / 2,
             size: 1 / (depth * fov),
+            depth,
         };
     };
 }
@@ -364,24 +365,38 @@ export const SpaceContent = GObject.registerClass({
     _updateLabels(scene, camera) {
         const labels = new Array(LABEL_SLOTS * 4).fill(0);
         const text = new Array(LABEL_SLOTS * 8).fill(0);
-        if (scene.system && this._options.labels) {
+        if (scene.system && this._options.labels && !this._locked) {
             const {columns, rows, aspect} = this._grid;
             const project = projector({...camera, aspect});
-            PLANET_NAMES.forEach((name, index) => {
+            const center = project([0, 0, 0]);
+            const placed = [];
+            const spots = PLANET_NAMES.map((name, index) => {
                 const planet = scene.planets.slice(index * 4, index * 4 + 4);
-                const spot = project(planet.slice(0, 3));
-                if (!spot)
-                    return;
-                const reach = planet[3] * spot.size;
-                const column = Math.floor(spot.x * columns + reach * columns / (2 * aspect)) + 1;
-                const row = Math.floor(spot.y * rows - Math.max(reach * rows / 2, 1));
-                if (row < 0 || row >= rows || column < 0 || column + name.length > columns)
-                    return;
+                return {name, index, radius: planet[3], spot: project(planet.slice(0, 3))};
+            }).filter(({spot}) => spot).sort((a, b) => a.spot.depth - b.spot.depth);
+
+            for (const {name, index, radius, spot} of spots) {
+                if (center && spot.depth > center.depth) {
+                    const gap = Math.hypot((spot.x - center.x) * 2 * aspect, (spot.y - center.y) * 2);
+                    if (gap < scene.centerRadius * center.size - radius * spot.size)
+                        continue;
+                }
+                const reachColumns = radius * spot.size * columns / (2 * aspect);
+                let column = Math.floor(spot.x * columns + reachColumns) + 1;
+                if (column + name.length > columns - 1)
+                    column = Math.floor(spot.x * columns - reachColumns) - 1 - name.length;
+                const baseRow = Math.floor(spot.y * rows - Math.max(radius * spot.size * rows / 2, 1));
+                const row = [baseRow, baseRow - 1, baseRow + 1].find(candidate =>
+                    candidate >= 1 && candidate < rows - 1 && !placed.some(other =>
+                        other.row === candidate && column < other.end + 1 && column + name.length > other.start - 1));
+                if (row === undefined || column < 1)
+                    continue;
+                placed.push({row, start: column, end: column + name.length});
                 labels.splice(index * 4, 4, column, row, name.length, 0.9);
                 [...name].forEach((letter, slot) => {
                     text[index * 8 + slot] = LETTERS.indexOf(letter) + 1;
                 });
-            });
+            }
         }
         const {pipeline, uniforms} = this._asciiPipeline;
         pipeline.set_uniform_float(uniforms.u_labels, 4, LABEL_SLOTS, labels);

@@ -12,6 +12,7 @@ const MODES = [
 const OBJECTS = [
     ['black-hole', 'Black hole'],
     ['neutron-star', 'Neutron star'],
+    ['star', 'Star'],
 ];
 
 function connectSetting(settings, key, widget, callback) {

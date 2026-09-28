@@ -12,8 +12,11 @@ Light rays bend around the black hole, so the far side of the disk shows up abov
 
 - Real-time ray tracing of light around a black hole, in a GLSL shader.
 - Drawn as ASCII characters in the scene's own colors, from ` .:-+=*%#@`.
-- Two object types: a black hole, and a neutron star with rotating hot spots and sweeping pulsar beams.
-- Pair mode shows two objects orbiting each other, with light bent by both. Pick any combination.
+- Three object types:
+  - a black hole with an accretion disk;
+  - a lone neutron star (pulsar) with rotating hot spots and sweeping beams, and no disk, like most real pulsars;
+  - a Sun-like star with limb darkening, granulation, sunspots and a corona.
+- Pair mode shows two objects orbiting each other, with light bent by every black hole and neutron star. Pick any combination.
 - Moving the cursor turns the camera. The camera eases after it.
 - Zoom in and out on the desktop by pinching with two fingers on a touchpad.
 - Super+Ctrl+scroll zooms from anywhere, with the mouse wheel or two fingers on a touchpad. Plain scrolling on an empty desktop also zooms, but not while a desktop icons extension covers the wallpaper.
@@ -59,8 +62,8 @@ gnome-extensions prefs black-hole-wallpaper@include5691.github.io
 | Setting | Default | Range |
 | --- | --- | --- |
 | Mode | single | single, pair |
-| First object | black hole | black hole, neutron star |
-| Second object (pair) | black hole | black hole, neutron star |
+| First object | black hole | black hole, neutron star, star |
+| Second object (pair) | black hole | black hole, neutron star, star |
 | Orbit speed (pair) | 100 % | 0 – 400 |
 | Frame rate | 30 fps | 5 – 60 |
 | Pause behind windows | on | |
@@ -81,10 +84,8 @@ GPU time per frame on an Intel Arc B390 with a 3120×2080 screen and the default
 
 | Scene | Time |
 | --- | --- |
-| Black hole or neutron star | 0.7 ms |
-| Neutron star pair | 1.0 ms |
-| Black hole and neutron star | 1.3 ms |
-| Black hole pair | 2.0 ms |
+| One object | 0.6 – 0.8 ms |
+| A pair | 0.8 – 2.0 ms |
 
 At 30 fps that is 2 – 6 % of the GPU.
 
@@ -93,7 +94,7 @@ At 30 fps that is 2 – 6 % of the GPU.
 1. Each `Meta.BackgroundActor` gets a child actor that covers it.
 2. The child shows a `Clutter.Content` shared by every background on the same monitor.
 3. A timer marks the content dirty. On the next paint it renders two offscreen passes once.
-4. The scene pass traces 2×2 light rays per character cell. Each ray is stepped through the bending of space around every object, and the pass finds where it crosses a disk. The disks are colored with noise, heat and Doppler shift. A neutron star has a glowing surface and two pulsar beams along its tilted, spinning magnetic axis.
+4. The scene pass traces 2×2 light rays per character cell. Each ray is stepped through the bending of space around every black hole and neutron star, and the pass finds where it crosses a disk. The disks are colored with noise, heat and Doppler shift. A neutron star has a glowing surface and two pulsar beams along its tilted, spinning magnetic axis. A star's own light bending is too small to see, so rays pass it straight until they hit its surface.
 5. The ASCII pass picks a character for each cell by brightness and draws it from a 5×7 bitmap font, in the cell's color.
 6. Each background draws the result, with the rounded corners the overview uses.
 7. While the screen is locked, the timer stops and the camera resets to the default view. The lock screen blur is turned off.

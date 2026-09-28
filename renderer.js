@@ -23,9 +23,10 @@ const ORBIT_PERIOD = 60;
 const PAIR_SEPARATION = 12;
 const PAIR_SCALE = 0.6;
 const SINGLE_DISK_OUTER = 17;
+const SINGLE_STAR_SCALE = 0.65;
 const PAIR_DISK_OUTER = 0.42 * PAIR_SEPARATION / PAIR_SCALE;
-const KINDS = {'black-hole': 0, 'neutron-star': 1};
-const DISK_INNER = {'black-hole': 2.1, 'neutron-star': 5.5};
+const KINDS = {'black-hole': 0, 'neutron-star': 1, 'star': 2};
+const DISK_INNER = 2.1;
 
 const SCENE_UNIFORMS = [
     'u_resolution', 'u_camera', 'u_fov', 'u_flow', 'u_time', 'u_exposure', 'u_doppler',
@@ -277,7 +278,8 @@ export const BlackHoleContent = GObject.registerClass({
         const bodies = this._bodies();
         const padded = [...bodies, bodies[0]].slice(0, 2);
         pipeline.set_uniform_float(uniforms.u_bodies, 4, 2, padded.flatMap(body => [...body.position, body.scale]));
-        pipeline.set_uniform_float(uniforms.u_disks, 2, 2, padded.flatMap(body => [DISK_INNER[body.kind], body.outer]));
+        const disks = padded.flatMap(body => (body.kind === 'black-hole' ? [DISK_INNER, body.outer] : [0, 0]));
+        pipeline.set_uniform_float(uniforms.u_disks, 2, 2, disks);
         pipeline.set_uniform_float(uniforms.u_kinds, 1, 2, padded.map(body => KINDS[body.kind]));
         pipeline.set_uniform_1f(uniforms.u_count, bodies.length);
 
@@ -289,7 +291,7 @@ export const BlackHoleContent = GObject.registerClass({
     _bodies() {
         const [first, second] = this._options.objects;
         if (!second)
-            return [{kind: first, position: [0, 0, 0], scale: 1, outer: SINGLE_DISK_OUTER}];
+            return [{kind: first, position: [0, 0, 0], scale: first === 'star' ? SINGLE_STAR_SCALE : 1, outer: SINGLE_DISK_OUTER}];
 
         const x = Math.cos(this._orbit) * PAIR_SEPARATION / 2;
         const z = Math.sin(this._orbit) * PAIR_SEPARATION / 2;

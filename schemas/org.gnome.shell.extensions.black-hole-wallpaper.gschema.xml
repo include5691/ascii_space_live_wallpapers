@@ -13,6 +13,7 @@
       <choices>
         <choice value="black-hole"/>
         <choice value="neutron-star"/>
+        <choice value="star"/>
       </choices>
       <default>'black-hole'</default>
       <summary>The object in single mode, and the first object of a pair</summary>
@@ -21,6 +22,7 @@
       <choices>
         <choice value="black-hole"/>
         <choice value="neutron-star"/>
+        <choice value="star"/>
       </choices>
       <default>'black-hole'</default>
       <summary>The second object of a pair</summary>

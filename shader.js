@@ -18,8 +18,10 @@ const float HEAT_RADIUS = 3.0;
 const float NEUTRON_RADIUS = 2.5;
 const float NEUTRON_TILT = 0.6;
 const float NEUTRON_TURNS = 96.0;
+const float STAR_RADIUS = 5.0;
+const float STAR_TURNS = 2.0;
 const float BEAM_LENGTH = 14.0;
-const float BEAM_INTENSITY = 0.25;
+const float BEAM_INTENSITY = 0.35;
 const float ESCAPE_RADIUS = 120.0;
 const float CRITICAL_IMPACT = 2.598;
 const float TIME_PERIOD = 256.0;
@@ -182,6 +184,8 @@ vec3 accel(vec3 p, vec3 v) {
     for (int i = 0; i < 2; i++) {
         if (float(i) >= u_count)
             break;
+        if (u_kinds[i] > 1.5)
+            continue;
         vec3 d = p - u_bodies[i].xyz;
         vec3 c = cross(d, v);
         float r2 = dot(d, d);
@@ -206,6 +210,20 @@ vec3 neutronSurface(vec3 n, vec3 view, float index) {
     float spot = pow(abs(dot(n, magneticAxis(index))), 10.0);
     float limb = mix(0.35, 1.0, clamp(dot(n, -view), 0.0, 1.0));
     return vec3(0.62, 0.78, 1.0) * (0.45 + 0.6 * grain + 3.5 * spot) * limb;
+}
+
+vec3 starSurface(vec3 n, vec3 view, float index) {
+    float spin = 2.0 * PI * (u_time / TIME_PERIOD * STAR_TURNS + index * 0.21);
+    vec3 local = vec3(n.x * cos(spin) + n.z * sin(spin), n.y, n.z * cos(spin) - n.x * sin(spin));
+    float mu = clamp(dot(n, -view), 0.0, 1.0);
+    float edge = 1.0 - mu;
+    float limb = 1.0 - 0.5 * edge - 0.25 * edge * edge;
+    float granules = noise3(local * 10.0 + index * 5.0);
+    float latitude = abs(local.y);
+    float band = smoothstep(0.05, 0.2, latitude) * (1.0 - smoothstep(0.45, 0.6, latitude));
+    float spots = smoothstep(0.66, 0.72, fbm(local * 6.0 + index * 9.0 + 2.0, 3.0)) * band;
+    vec3 color = mix(vec3(1.0, 0.55, 0.25), vec3(1.0, 0.92, 0.75), mu);
+    return color * (1.4 + 0.35 * granules) * limb * (1.0 - 0.8 * spots);
 }
 
 vec3 pulsarBeam(vec3 d, vec3 axis) {
@@ -264,7 +282,7 @@ vec4 renderPixel(vec2 st) {
             if (float(i) >= u_count)
                 break;
             vec3 d = (pos - u_bodies[i].xyz) / u_bodies[i].w;
-            if (u_kinds[i] > 0.5 && dot(d, d) < BEAM_LENGTH * BEAM_LENGTH)
+            if (abs(u_kinds[i] - 1.0) < 0.5 && dot(d, d) < BEAM_LENGTH * BEAM_LENGTH)
                 color += transmittance * pulsarBeam(d, axes[i]) * dt / u_bodies[i].w;
         }
 
@@ -299,8 +317,11 @@ vec4 renderPixel(vec2 st) {
             }
             if (u_kinds[i] < 0.5 && r < u_bodies[i].w) {
                 captured = true;
-            } else if (u_kinds[i] > 0.5 && r < NEUTRON_RADIUS * u_bodies[i].w) {
+            } else if (abs(u_kinds[i] - 1.0) < 0.5 && r < NEUTRON_RADIUS * u_bodies[i].w) {
                 color += transmittance * neutronSurface(d / r, normalize(vel), float(i));
+                captured = true;
+            } else if (u_kinds[i] > 1.5 && r < STAR_RADIUS * u_bodies[i].w) {
+                color += transmittance * starSurface(d / r, normalize(vel), float(i));
                 captured = true;
             }
         }
@@ -327,9 +348,12 @@ vec4 renderPixel(vec2 st) {
             float offset = impact[i] / scale - CRITICAL_IMPACT;
             float ring = offset > 0.0 ? exp(-offset * 40.0) + exp(-offset * 8.0) * 0.08 : exp(offset * 120.0);
             color += nearTransmittance[i] * vec3(1.0, 0.84, 0.66) * ring * 1.4;
-        } else if (closest[i] > NEUTRON_RADIUS * scale) {
+        } else if (u_kinds[i] < 1.5 && closest[i] > NEUTRON_RADIUS * scale) {
             float halo = exp(-(closest[i] / (NEUTRON_RADIUS * scale) - 1.0) * 6.0);
             color += nearTransmittance[i] * vec3(0.55, 0.72, 1.0) * halo * 0.3;
+        } else if (u_kinds[i] > 1.5 && closest[i] > STAR_RADIUS * scale) {
+            float corona = exp(-(closest[i] / (STAR_RADIUS * scale) - 1.0) * 7.0);
+            color += nearTransmittance[i] * vec3(1.0, 0.75, 0.45) * corona * 0.5;
         }
     }
 

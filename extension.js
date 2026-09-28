@@ -48,10 +48,13 @@ function isDesktopAt(x, y) {
     for (; actor; actor = actor.get_parent()) {
         if (actor instanceof Meta.BackgroundActor)
             return true;
-        if (actor instanceof Meta.WindowActor)
-            return actor.get_meta_window().get_window_type() === Meta.WindowType.DESKTOP;
     }
     return false;
+}
+
+function hasZoomModifiers(event) {
+    const modifiers = global.display.compositor_modifiers | Clutter.ModifierType.CONTROL_MASK;
+    return (event.get_state() & modifiers) === modifiers;
 }
 
 function isMonitorCovered(index) {
@@ -188,10 +191,14 @@ export default class BlackHoleWallpaperExtension extends Extension {
     }
 
     _onScroll(event) {
-        if (event.get_scroll_direction() !== Clutter.ScrollDirection.SMOOTH ||
-            Main.overview.visible || Main.sessionMode.isLocked || Main.modalCount > 0 ||
-            !isDesktopAt(...event.get_coords()))
+        if (Main.overview.visible || Main.sessionMode.isLocked || Main.modalCount > 0)
             return Clutter.EVENT_PROPAGATE;
+
+        const result = hasZoomModifiers(event) ? Clutter.EVENT_STOP : Clutter.EVENT_PROPAGATE;
+        if (result === Clutter.EVENT_PROPAGATE && !isDesktopAt(...event.get_coords()))
+            return Clutter.EVENT_PROPAGATE;
+        if (event.get_scroll_direction() !== Clutter.ScrollDirection.SMOOTH)
+            return result;
 
         const [, dy] = event.get_scroll_delta();
         const zoom = clamp(this._options.zoom * Math.exp(-dy * ZOOM_PER_SCROLL), ...this._zoomRange);
@@ -204,7 +211,7 @@ export default class BlackHoleWallpaperExtension extends Extension {
             this._settings.set_uint('zoom', Math.round(zoom * 100));
             return GLib.SOURCE_REMOVE;
         });
-        return Clutter.EVENT_PROPAGATE;
+        return result;
     }
 
     _cancelZoomSave() {

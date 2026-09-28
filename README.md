@@ -17,7 +17,7 @@ Light rays bend around the black hole, so the far side of the disk shows up abov
   - a lone neutron star (pulsar) with rotating hot spots and sweeping beams, and no disk, like most real pulsars;
   - a Sun-like star with limb darkening, granulation, sunspots and a corona;
   - a wormhole: its mouth bends light like a black hole, and through its throat you see another universe with a spinning spiral galaxy;
-  - a ringed planet: a banded gas giant with a storm, lit by a sun, with rings that it shadows and that shadow it, and three moons. Next to a star, it is lit by that star.
+  - a ringed planet: a banded gas giant with a storm, lit by a sun, with rings that it shadows and that shadow it, and three moons on tilted orbits. Next to a star, it is lit by that star.
 - A Milky Way sky: a glowing band with dust lanes, a bright core, denser stars and colored nebulae, bent by every object. Or plain stars.
 - A single star lives out one of two real fates, taking turns:
   - planetary nebula: it swells into a red giant, then puffs off a glowing ring nebula, teal inside and red outside, around a tiny blue-white dwarf;
@@ -34,7 +34,7 @@ Light rays bend around the black hole, so the far side of the disk shows up abov
   | Black hole and neutron star | They spiral in, the neutron star is torn apart and swallowed, and the black hole fires jets. |
   | Two stars, or any pair with a wormhole or a planet | A calm orbit. |
 
-  Orbit speed also sets the speed of the event. A black hole event takes about 2 minutes at 100 %. Turn off Cosmic events for calm scenes only.
+  Speed sets how fast orbits and events play. A black hole event takes about 2 minutes at 100 %. Turn off Cosmic events for calm scenes only.
 - Moving the cursor turns the camera. The camera eases after it.
 - Zoom in and out on the desktop by pinching with two fingers on a touchpad.
 - Super+Ctrl+scroll zooms from anywhere, with the mouse wheel or two fingers on a touchpad. Plain scrolling on an empty desktop also zooms, but not while a desktop icons extension covers the wallpaper.
@@ -84,7 +84,7 @@ gnome-extensions prefs space-wallpaper@include5691.github.io
 | Comets and meteors | on | |
 | First object | black hole | black hole, neutron star, star, wormhole, ringed planet |
 | Second object (pair) | black hole | black hole, neutron star, star, wormhole, ringed planet |
-| Orbit speed (pair) | 100 % | 0 – 400, also sets event speed |
+| Speed | 100 % | 0 – 400, orbits and cosmic events |
 | Cosmic events | on | |
 | Frame rate | 30 fps | 5 – 60 |
 | Pause behind windows | on | |
@@ -93,7 +93,7 @@ gnome-extensions prefs space-wallpaper@include5691.github.io
 | Smoothness | 40 % | 0 – 100 |
 | Background | Milky Way | Milky Way, stars |
 | Character size | 3 | 1 – 8 |
-| Rotation speed | 100 % | 0 – 400 |
+| Disk rotation speed | 100 % | 0 – 400 |
 | Camera height | 8° | -30 – 60 |
 | Tilt | 9° | -45 – 45 |
 | Zoom | 100 % | 25 – 400 |

@@ -17,6 +17,36 @@ const OBJECTS = [
     ['planet', 'Ringed planet'],
 ];
 
+const EVENT_PAIRS = new Set([
+    'black-hole+black-hole',
+    'neutron-star+neutron-star',
+    'black-hole+neutron-star',
+    'black-hole+star',
+    'neutron-star+star',
+]);
+
+function selectedObjects(settings) {
+    const first = settings.get_string('first-object');
+    return settings.get_string('mode') === 'pair' ? [first, settings.get_string('second-object')] : [first];
+}
+
+function hasEvents(objects) {
+    return objects.length === 1 ? objects[0] === 'star' : EVENT_PAIRS.has([...objects].sort().join('+'));
+}
+
+function isNeutronStarPair(objects) {
+    return objects.length === 2 && objects.every(kind => kind === 'neutron-star');
+}
+
+function hasBlackHole(objects, events) {
+    return objects.includes('black-hole') || (events && isNeutronStarPair(objects));
+}
+
+function hasDisk(objects, events) {
+    return hasBlackHole(objects, events) ||
+        (events && objects.includes('neutron-star') && objects.includes('star'));
+}
+
 const BACKGROUNDS = [
     ['milky-way', 'Milky Way'],
     ['stars', 'Stars'],
@@ -73,22 +103,16 @@ export default class SpaceWallpaperPreferences extends ExtensionPreferences {
 
         const objects = new Adw.PreferencesGroup({title: 'Objects'});
         const secondObject = comboRow(settings, 'second-object', 'Second object', OBJECTS);
-        const orbitSpeed = spinRow(settings, 'orbit-speed', 'Orbit speed', 'Percent');
+        const orbitSpeed = spinRow(settings, 'orbit-speed', 'Speed', 'Orbits and cosmic events, in percent');
         objects.add(comboRow(settings, 'mode', 'Mode', MODES));
         objects.add(comboRow(settings, 'first-object', 'First object', OBJECTS));
         objects.add(secondObject);
         objects.add(orbitSpeed);
-        objects.add(spinRow(settings, 'spin', 'Black hole spin', 'Percent of the maximum; drags space and squashes the shadow'));
+        const spin = spinRow(settings, 'spin', 'Black hole spin', 'Percent of the maximum; drags space and squashes the shadow');
+        const events = switchRow(settings, 'events', 'Cosmic events', 'Mergers, devoured stars and supernovae');
+        objects.add(spin);
         objects.add(switchRow(settings, 'comets', 'Comets and meteors'));
-        objects.add(switchRow(settings, 'events', 'Cosmic events',
-            'Mergers, devoured stars and supernovae'));
-
-        const syncPairRows = () => {
-            const pair = settings.get_string('mode') === 'pair';
-            [secondObject, orbitSpeed].forEach(row => row.set_sensitive(pair));
-        };
-        syncPairRows();
-        connectSetting(settings, 'mode', secondObject, syncPairRows);
+        objects.add(events);
 
         const performance = new Adw.PreferencesGroup({title: 'Performance'});
         performance.add(spinRow(settings, 'fps', 'Frame rate', 'Frames per second'));
@@ -116,12 +140,28 @@ export default class SpaceWallpaperPreferences extends ExtensionPreferences {
         });
         scene.add(comboRow(settings, 'background', 'Background', BACKGROUNDS));
         scene.add(spinRow(settings, 'char-size', 'Character size', 'Screen pixels per font dot'));
-        scene.add(spinRow(settings, 'rotation-speed', 'Rotation speed', 'Percent'));
-        scene.add(spinRow(settings, 'elevation', 'Camera height', 'Degrees above the disk'));
+        const rotation = spinRow(settings, 'rotation-speed', 'Disk rotation speed', 'Percent');
+        scene.add(rotation);
+        scene.add(spinRow(settings, 'elevation', 'Camera height', 'Degrees above the orbital plane'));
         scene.add(spinRow(settings, 'tilt', 'Tilt', 'Degrees'));
         scene.add(spinRow(settings, 'zoom', 'Zoom', 'Percent'));
         scene.add(spinRow(settings, 'brightness', 'Brightness', 'Percent'));
-        scene.add(spinRow(settings, 'doppler', 'Doppler effect', 'Brighter approaching side, in percent'));
+        const doppler = spinRow(settings, 'doppler', 'Doppler effect', 'Brighter approaching side of the disk, in percent');
+        scene.add(doppler);
+
+        const syncObjectRows = () => {
+            const selected = selectedObjects(settings);
+            const pair = selected.length === 2;
+            const eventsOn = settings.get_boolean('events');
+            secondObject.set_sensitive(pair);
+            orbitSpeed.set_sensitive(pair || (eventsOn && hasEvents(selected)));
+            spin.set_sensitive(hasBlackHole(selected, eventsOn));
+            events.set_sensitive(hasEvents(selected));
+            const disk = hasDisk(selected, eventsOn);
+            [rotation, doppler].forEach(row => row.set_sensitive(disk));
+        };
+        syncObjectRows();
+        ['mode', 'first-object', 'second-object', 'events'].forEach(key => connectSetting(settings, key, spin, syncObjectRows));
 
         const page = new Adw.PreferencesPage();
         [objects, performance, cursor, scene].forEach(group => page.add(group));

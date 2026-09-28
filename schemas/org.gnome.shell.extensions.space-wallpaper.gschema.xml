@@ -55,7 +55,7 @@
     <key name="orbit-speed" type="u">
       <range min="0" max="400"/>
       <default>100</default>
-      <summary>How fast a pair orbits, in percent</summary>
+      <summary>Speed of orbits and cosmic events, in percent</summary>
     </key>
     <key name="char-size" type="u">
       <range min="1" max="8"/>
@@ -93,7 +93,7 @@
     <key name="elevation" type="i">
       <range min="-30" max="60"/>
       <default>8</default>
-      <summary>Camera height above the disk in degrees</summary>
+      <summary>Camera height above the orbital plane in degrees</summary>
     </key>
     <key name="tilt" type="i">
       <range min="-45" max="45"/>

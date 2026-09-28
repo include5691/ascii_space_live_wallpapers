@@ -19,6 +19,10 @@ const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
 function readOptions(settings) {
     return {
         charSize: settings.get_uint('char-size'),
+        objects: settings.get_string('mode') === 'pair'
+            ? [settings.get_string('first-object'), settings.get_string('second-object')]
+            : [settings.get_string('first-object')],
+        orbitSpeed: settings.get_uint('orbit-speed') / 100,
         pauseWhenCovered: settings.get_boolean('pause-when-covered'),
         followCursor: settings.get_boolean('follow-cursor'),
         sensitivity: settings.get_uint('cursor-sensitivity') / 100,

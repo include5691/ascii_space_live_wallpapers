@@ -1,6 +1,35 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <schemalist>
   <schema id="org.gnome.shell.extensions.black-hole-wallpaper" path="/org/gnome/shell/extensions/black-hole-wallpaper/">
+    <key name="mode" type="s">
+      <choices>
+        <choice value="single"/>
+        <choice value="pair"/>
+      </choices>
+      <default>'single'</default>
+      <summary>Show one object or a pair orbiting each other</summary>
+    </key>
+    <key name="first-object" type="s">
+      <choices>
+        <choice value="black-hole"/>
+        <choice value="neutron-star"/>
+      </choices>
+      <default>'black-hole'</default>
+      <summary>The object in single mode, and the first object of a pair</summary>
+    </key>
+    <key name="second-object" type="s">
+      <choices>
+        <choice value="black-hole"/>
+        <choice value="neutron-star"/>
+      </choices>
+      <default>'black-hole'</default>
+      <summary>The second object of a pair</summary>
+    </key>
+    <key name="orbit-speed" type="u">
+      <range min="0" max="400"/>
+      <default>100</default>
+      <summary>How fast a pair orbits, in percent</summary>
+    </key>
     <key name="char-size" type="u">
       <range min="1" max="8"/>
       <default>3</default>

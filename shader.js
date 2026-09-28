@@ -6,13 +6,20 @@ uniform vec4 u_flow;
 uniform float u_time;
 uniform float u_exposure;
 uniform float u_doppler;
+uniform vec4 u_bodies[2];
+uniform vec2 u_disks[2];
+uniform float u_kinds[2];
+uniform float u_count;
 
 const float PI = 3.14159265;
 const float DISTANCE = 22.0;
 const float SPIN = 2.6;
-const float DISK_INNER = 2.1;
 const float HEAT_RADIUS = 3.0;
-const float DISK_OUTER = 17.0;
+const float NEUTRON_RADIUS = 2.5;
+const float NEUTRON_TILT = 0.6;
+const float NEUTRON_TURNS = 96.0;
+const float BEAM_LENGTH = 14.0;
+const float BEAM_INTENSITY = 0.25;
 const float ESCAPE_RADIUS = 120.0;
 const float CRITICAL_IMPACT = 2.598;
 const float TIME_PERIOD = 256.0;
@@ -97,15 +104,17 @@ vec3 diskColor(float t) {
     return t < 0.5 ? mix(cool, warm, t * 2.0) : mix(warm, hot, t * 2.0 - 1.0);
 }
 
-vec4 diskSample(vec3 p, vec3 dir) {
+vec4 diskSample(vec3 p, vec3 dir, vec2 extent) {
+    float inner = extent.x;
+    float outer = extent.y;
     float r = length(p.xz);
-    if (r < DISK_INNER || r > DISK_OUTER)
+    if (r < inner || r > outer)
         return vec4(0.0);
 
     float phi = atan(p.z, p.x);
     vec2 pattern = diskDensity(r, phi);
     float n = pattern.x;
-    float edge = smoothstep(DISK_INNER, DISK_INNER + 0.4, r) * (1.0 - smoothstep(DISK_OUTER * 0.35, DISK_OUTER, r));
+    float edge = smoothstep(inner, inner + 0.4, r) * (1.0 - smoothstep(outer * 0.35, outer, r));
     float density = clamp(n * edge * 2.2 - 0.5, 0.0, 1.0);
 
     float beta = sqrt(0.5 / (r - 1.0));
@@ -120,8 +129,8 @@ vec4 diskSample(vec3 p, vec3 dir) {
     float dust = mix(1.0, 0.25, smoothstep(0.45, 0.75, pattern.y)) * mix(0.4, 1.0, smoothstep(0.2, 0.8, n));
 
     float alpha = 1.0 - exp(-density * (1.2 + 0.5 / max(abs(dir.y), 0.04)));
-    float haze = smoothstep(DISK_INNER * 1.1, DISK_INNER * 2.0, r) * (1.0 - smoothstep(DISK_OUTER * 0.3, DISK_OUTER, r))
-        * pow(DISK_INNER / r, 1.6) * 0.025 / max(abs(dir.y), 0.1);
+    float haze = smoothstep(inner * 1.1, inner * 2.0, r) * (1.0 - smoothstep(outer * 0.3, outer, r))
+        * pow(inner / r, 1.6) * 0.025 / max(abs(dir.y), 0.1);
     return vec4(color * intensity * dust * alpha + vec3(1.0, 0.55, 0.28) * haze, alpha);
 }
 
@@ -168,9 +177,46 @@ vec3 nebula(vec3 d) {
     return mix(vec3(0.004, 0.005, 0.008), vec3(0.009, 0.009, 0.010), wisps) * (0.6 + 0.8 * n);
 }
 
-vec3 accel(vec3 p, float h2) {
-    float r2 = dot(p, p);
-    return -1.5 * h2 * p / (r2 * r2 * sqrt(r2));
+vec3 accel(vec3 p, vec3 v) {
+    vec3 a = vec3(0.0);
+    for (int i = 0; i < 2; i++) {
+        if (float(i) >= u_count)
+            break;
+        vec3 d = p - u_bodies[i].xyz;
+        vec3 c = cross(d, v);
+        float r2 = dot(d, d);
+        a -= 1.5 * u_bodies[i].w * dot(c, c) * d / (r2 * r2 * sqrt(r2));
+    }
+    return a;
+}
+
+float spinAngle(float index) {
+    return 2.0 * PI * (u_time / TIME_PERIOD * NEUTRON_TURNS + index * 0.37);
+}
+
+vec3 magneticAxis(float index) {
+    float spin = spinAngle(index);
+    return vec3(sin(NEUTRON_TILT) * cos(spin), cos(NEUTRON_TILT), sin(NEUTRON_TILT) * sin(spin));
+}
+
+vec3 neutronSurface(vec3 n, vec3 view, float index) {
+    float spin = spinAngle(index);
+    vec3 local = vec3(n.x * cos(spin) + n.z * sin(spin), n.y, n.z * cos(spin) - n.x * sin(spin));
+    float grain = fbm(local * 6.0 + index * 11.0, 3.0);
+    float spot = pow(abs(dot(n, magneticAxis(index))), 10.0);
+    float limb = mix(0.35, 1.0, clamp(dot(n, -view), 0.0, 1.0));
+    return vec3(0.62, 0.78, 1.0) * (0.45 + 0.6 * grain + 3.5 * spot) * limb;
+}
+
+vec3 pulsarBeam(vec3 d, vec3 axis) {
+    float along = dot(d, axis);
+    float span = abs(along);
+    if (span < NEUTRON_RADIUS)
+        return vec3(0.0);
+    float width = 0.12 + 0.06 * span;
+    float perp = length(d - along * axis);
+    return vec3(0.55, 0.75, 1.0) * BEAM_INTENSITY
+        * exp(-perp * perp / (width * width)) * exp(-span / BEAM_LENGTH * 2.5);
 }
 
 vec4 renderPixel(vec2 st) {
@@ -187,49 +233,81 @@ vec4 renderPixel(vec2 st) {
     vec3 rolledUp = cos(roll) * up - sin(roll) * right;
     vec3 dir = normalize(forward + (uv.x * rolledRight + uv.y * rolledUp) * u_fov);
 
+    vec3 axes[2];
+    float closest[2];
+    float impact[2];
+    float nearTransmittance[2];
+    for (int i = 0; i < 2; i++) {
+        axes[i] = magneticAxis(float(i));
+        closest[i] = 1e6;
+        impact[i] = 1e6;
+        nearTransmittance[i] = 1.0;
+    }
+
     vec3 pos = origin;
     vec3 vel = dir;
-    vec3 c = cross(pos, vel);
-    float h2 = dot(c, c);
-    vec3 a = accel(pos, h2);
-
+    vec3 a = accel(pos, vel);
     vec3 color = vec3(0.0);
     float transmittance = 1.0;
-    float ringTransmittance = 1.0;
-    float closest = 1e6;
     bool captured = false;
 
-    for (int i = 0; i < MAX_STEPS; i++) {
-        float r = length(pos);
-        float dt = max(STEP_SCALE * r * max(1.0, r / 25.0), 0.03);
+    for (int n = 0; n < MAX_STEPS; n++) {
+        float nearest = 1e6;
+        for (int i = 0; i < 2; i++) {
+            if (float(i) >= u_count)
+                break;
+            nearest = min(nearest, length(pos - u_bodies[i].xyz));
+        }
+        float dt = max(STEP_SCALE * nearest * max(1.0, length(pos) / 25.0), 0.02);
+
+        for (int i = 0; i < 2; i++) {
+            if (float(i) >= u_count)
+                break;
+            vec3 d = (pos - u_bodies[i].xyz) / u_bodies[i].w;
+            if (u_kinds[i] > 0.5 && dot(d, d) < BEAM_LENGTH * BEAM_LENGTH)
+                color += transmittance * pulsarBeam(d, axes[i]) * dt / u_bodies[i].w;
+        }
 
         vec3 halfVel = vel + a * (0.5 * dt);
         vec3 next = pos + halfVel * dt;
-        vec3 nextA = accel(next, h2);
+        vec3 nextA = accel(next, halfVel);
         vel = halfVel + nextA * (0.5 * dt);
         a = nextA;
 
         if (pos.y * next.y < 0.0) {
             vec3 hit = mix(pos, next, pos.y / (pos.y - next.y));
-            vec4 disk = diskSample(hit, normalize(vel));
-            color += transmittance * disk.rgb;
-            transmittance *= 1.0 - disk.a;
+            vec3 hitDir = normalize(vel);
+            for (int i = 0; i < 2; i++) {
+                if (float(i) >= u_count)
+                    break;
+                vec4 disk = diskSample((hit - u_bodies[i].xyz) / u_bodies[i].w, hitDir, u_disks[i]);
+                color += transmittance * disk.rgb;
+                transmittance *= 1.0 - disk.a;
+            }
         }
 
         pos = next;
-        float r2 = dot(pos, pos);
-        if (r2 < closest) {
-            closest = r2;
-            ringTransmittance = transmittance;
+        for (int i = 0; i < 2; i++) {
+            if (float(i) >= u_count)
+                break;
+            vec3 d = pos - u_bodies[i].xyz;
+            float r = length(d);
+            if (r < closest[i]) {
+                closest[i] = r;
+                impact[i] = length(cross(d, vel));
+                nearTransmittance[i] = transmittance;
+            }
+            if (u_kinds[i] < 0.5 && r < u_bodies[i].w) {
+                captured = true;
+            } else if (u_kinds[i] > 0.5 && r < NEUTRON_RADIUS * u_bodies[i].w) {
+                color += transmittance * neutronSurface(d / r, normalize(vel), float(i));
+                captured = true;
+            }
         }
 
-        if (r2 < 1.0) {
-            captured = true;
+        if (captured || transmittance < 0.01)
             break;
-        }
-        if (transmittance < 0.01)
-            break;
-        if (r2 > ESCAPE_RADIUS * ESCAPE_RADIUS && dot(pos, vel) > 0.0)
+        if (dot(pos, pos) > ESCAPE_RADIUS * ESCAPE_RADIUS && dot(pos, vel) > 0.0)
             break;
     }
 
@@ -241,9 +319,19 @@ vec4 renderPixel(vec2 st) {
     if (!captured)
         color += transmittance * (nebula(escape) + starfield(sky, face, du, dv));
 
-    float offset = sqrt(h2) - CRITICAL_IMPACT;
-    float ring = offset > 0.0 ? exp(-offset * 40.0) + exp(-offset * 8.0) * 0.08 : exp(offset * 120.0);
-    color += ringTransmittance * vec3(1.0, 0.84, 0.66) * ring * 1.4;
+    for (int i = 0; i < 2; i++) {
+        if (float(i) >= u_count)
+            break;
+        float scale = u_bodies[i].w;
+        if (u_kinds[i] < 0.5) {
+            float offset = impact[i] / scale - CRITICAL_IMPACT;
+            float ring = offset > 0.0 ? exp(-offset * 40.0) + exp(-offset * 8.0) * 0.08 : exp(offset * 120.0);
+            color += nearTransmittance[i] * vec3(1.0, 0.84, 0.66) * ring * 1.4;
+        } else if (closest[i] > NEUTRON_RADIUS * scale) {
+            float halo = exp(-(closest[i] / (NEUTRON_RADIUS * scale) - 1.0) * 6.0);
+            color += nearTransmittance[i] * vec3(0.55, 0.72, 1.0) * halo * 0.3;
+        }
+    }
 
     color = vec3(1.0) - exp(-color * u_exposure);
     color = pow(color, vec3(1.0 / 2.2));

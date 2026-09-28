@@ -4,6 +4,16 @@ import Gtk from 'gi://Gtk';
 
 import {ExtensionPreferences} from 'resource:///org/gnome/Shell/Extensions/js/extensions/prefs.js';
 
+const MODES = [
+    ['single', 'Single'],
+    ['pair', 'Pair'],
+];
+
+const OBJECTS = [
+    ['black-hole', 'Black hole'],
+    ['neutron-star', 'Neutron star'],
+];
+
 function connectSetting(settings, key, widget, callback) {
     const id = settings.connect(`changed::${key}`, callback);
     widget.connect('destroy', () => settings.disconnect(id));
@@ -23,6 +33,20 @@ function switchRow(settings, key, title, subtitle = '') {
     return row;
 }
 
+function comboRow(settings, key, title, options) {
+    const row = new Adw.ComboRow({
+        title,
+        model: Gtk.StringList.new(options.map(([, label]) => label)),
+    });
+    const sync = () => {
+        row.selected = Math.max(options.findIndex(([value]) => value === settings.get_string(key)), 0);
+    };
+    sync();
+    connectSetting(settings, key, row, sync);
+    row.connect('notify::selected', () => settings.set_string(key, options[row.selected][0]));
+    return row;
+}
+
 function resetButton(settings, keys) {
     const button = new Gtk.Button({
         icon_name: 'edit-undo-symbolic',
@@ -38,6 +62,21 @@ export default class BlackHoleWallpaperPreferences extends ExtensionPreferences 
     fillPreferencesWindow(window) {
         const settings = this.getSettings();
         window._settings = settings;
+
+        const objects = new Adw.PreferencesGroup({title: 'Objects'});
+        const secondObject = comboRow(settings, 'second-object', 'Second object', OBJECTS);
+        const orbitSpeed = spinRow(settings, 'orbit-speed', 'Orbit speed', 'Percent');
+        objects.add(comboRow(settings, 'mode', 'Mode', MODES));
+        objects.add(comboRow(settings, 'first-object', 'First object', OBJECTS));
+        objects.add(secondObject);
+        objects.add(orbitSpeed);
+
+        const syncPairRows = () => {
+            const pair = settings.get_string('mode') === 'pair';
+            [secondObject, orbitSpeed].forEach(row => row.set_sensitive(pair));
+        };
+        syncPairRows();
+        connectSetting(settings, 'mode', secondObject, syncPairRows);
 
         const performance = new Adw.PreferencesGroup({title: 'Performance'});
         performance.add(spinRow(settings, 'fps', 'Frame rate', 'Frames per second'));
@@ -72,7 +111,7 @@ export default class BlackHoleWallpaperPreferences extends ExtensionPreferences 
         scene.add(spinRow(settings, 'doppler', 'Doppler effect', 'Brighter approaching side, in percent'));
 
         const page = new Adw.PreferencesPage();
-        [performance, cursor, scene].forEach(group => page.add(group));
+        [objects, performance, cursor, scene].forEach(group => page.add(group));
         window.add(page);
     }
 }

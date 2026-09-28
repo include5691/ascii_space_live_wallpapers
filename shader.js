@@ -480,7 +480,7 @@ vec3 planetSurface(vec3 n, vec3 p, vec3 view, vec3 center, float scale, float in
 
 vec3 earthSurface(vec3 n, vec3 p, vec3 view, float index) {
     vec3 axis = normalize(EARTH_AXIS);
-    float spin = 2.0 * PI * (u_time / TIME_PERIOD * EARTH_TURNS + index * 0.3);
+    float spin = -2.0 * PI * (u_time / TIME_PERIOD * EARTH_TURNS + index * 0.3);
     vec3 local = bodyFrame(n, axis, spin);
     float latitude = asin(clamp(local.y, -1.0, 1.0));
     float longitude = atan(-local.z, local.x);
@@ -529,7 +529,7 @@ vec4 earthMoonHit(vec3 from, vec3 to, vec3 center, float scale) {
     vec3 dir = segment / span;
     float radius = EARTH_RADIUS * scale;
     float angle = 2.0 * PI * (u_time / TIME_PERIOD * 3.0 + 0.2);
-    vec3 moon = center + vec3(cos(angle), 0.09 * sin(angle), sin(angle)) * radius * 3.4;
+    vec3 moon = center + vec3(cos(angle), 0.09 * sin(angle), sin(angle)) * radius * (u_count > 1.5 ? 2.2 : 3.4);
     float t = sphereEntry(from, dir, span, moon, radius * 0.27);
     if (t < 0.0)
         return vec4(0.0);
@@ -737,12 +737,14 @@ vec4 renderPixel(vec2 st) {
     float closest[2];
     float impact[2];
     float nearTransmittance[2];
+    vec3 nearPoint[2];
     float linger[2];
     for (int i = 0; i < 2; i++) {
         axes[i] = magneticAxis(float(i));
         closest[i] = 1e6;
         impact[i] = 1e6;
         nearTransmittance[i] = 1.0;
+        nearPoint[i] = vec3(0.0, 1.0, 0.0);
         linger[i] = 0.0;
     }
 
@@ -887,6 +889,7 @@ vec4 renderPixel(vec2 st) {
             float r = length(d);
             if (r < closest[i]) {
                 closest[i] = r;
+                nearPoint[i] = d;
                 impact[i] = length(cross(d, vel));
                 nearTransmittance[i] = transmittance;
             }
@@ -952,7 +955,9 @@ vec4 renderPixel(vec2 st) {
             float halo = exp(-(closest[i] / (NEUTRON_RADIUS * scale) - 1.0) * 6.0);
             color += nearTransmittance[i] * vec3(0.55, 0.72, 1.0) * halo * 0.3;
         } else if (u_kinds[i] > 4.5 && closest[i] > EARTH_RADIUS * scale) {
-            float air = exp(-(closest[i] / (EARTH_RADIUS * scale) - 1.0) * 30.0);
+            vec3 limb = normalize(nearPoint[i]);
+            float air = exp(-(closest[i] / (EARTH_RADIUS * scale) - 1.0) * 30.0)
+                * smoothstep(-0.25, 0.35, dot(limb, lightFrom(u_bodies[i].xyz + nearPoint[i])));
             color += nearTransmittance[i] * u_light_color * vec3(0.35, 0.6, 1.0) * air * 0.35;
         } else if (abs(u_kinds[i] - 3.0) < 0.5 && closest[i] > WORMHOLE_THROAT * scale) {
             float rim = exp(-(closest[i] / (WORMHOLE_THROAT * scale) - 1.0) * 12.0);

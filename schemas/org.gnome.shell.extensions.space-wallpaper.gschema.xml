@@ -5,9 +5,10 @@
       <choices>
         <choice value="single"/>
         <choice value="pair"/>
+        <choice value="system"/>
       </choices>
       <default>'single'</default>
-      <summary>Show one object or a pair orbiting each other</summary>
+      <summary>Show one object, a pair orbiting each other, or a solar system around the first object</summary>
     </key>
     <key name="first-object" type="s">
       <choices>
@@ -16,6 +17,7 @@
         <choice value="star"/>
         <choice value="wormhole"/>
         <choice value="planet"/>
+        <choice value="earth"/>
       </choices>
       <default>'black-hole'</default>
       <summary>The object in single mode, and the first object of a pair</summary>
@@ -27,6 +29,7 @@
         <choice value="star"/>
         <choice value="wormhole"/>
         <choice value="planet"/>
+        <choice value="earth"/>
       </choices>
       <default>'black-hole'</default>
       <summary>The second object of a pair</summary>
@@ -35,6 +38,10 @@
       <range min="0" max="99"/>
       <default>60</default>
       <summary>Black hole spin in percent of the maximum</summary>
+    </key>
+    <key name="labels" type="b">
+      <default>true</default>
+      <summary>Show planet names in solar system mode</summary>
     </key>
     <key name="comets" type="b">
       <default>true</default>

@@ -7,6 +7,7 @@ import {ExtensionPreferences} from 'resource:///org/gnome/Shell/Extensions/js/ex
 const MODES = [
     ['single', 'Single'],
     ['pair', 'Pair'],
+    ['system', 'Solar system'],
 ];
 
 const OBJECTS = [
@@ -15,6 +16,7 @@ const OBJECTS = [
     ['star', 'Star'],
     ['wormhole', 'Wormhole'],
     ['planet', 'Ringed planet'],
+    ['earth', 'Earth'],
 ];
 
 const EVENT_PAIRS = new Set([
@@ -30,7 +32,13 @@ function selectedObjects(settings) {
     return settings.get_string('mode') === 'pair' ? [first, settings.get_string('second-object')] : [first];
 }
 
-function hasEvents(objects) {
+function isSystem(settings) {
+    return settings.get_string('mode') === 'system';
+}
+
+function hasEvents(objects, system = false) {
+    if (system)
+        return false;
     return objects.length === 1 ? objects[0] === 'star' : EVENT_PAIRS.has([...objects].sort().join('+'));
 }
 
@@ -105,12 +113,15 @@ export default class SpaceWallpaperPreferences extends ExtensionPreferences {
         const secondObject = comboRow(settings, 'second-object', 'Second object', OBJECTS);
         const orbitSpeed = spinRow(settings, 'orbit-speed', 'Speed', 'Orbits and cosmic events, in percent');
         objects.add(comboRow(settings, 'mode', 'Mode', MODES));
-        objects.add(comboRow(settings, 'first-object', 'First object', OBJECTS));
+        const firstObject = comboRow(settings, 'first-object', 'First object', OBJECTS);
+        const labels = switchRow(settings, 'labels', 'Planet names');
+        objects.add(firstObject);
         objects.add(secondObject);
         objects.add(orbitSpeed);
         const spin = spinRow(settings, 'spin', 'Black hole spin', 'Percent of the maximum; drags space and squashes the shadow');
         const events = switchRow(settings, 'events', 'Cosmic events', 'Mergers, devoured stars and supernovae');
         objects.add(spin);
+        objects.add(labels);
         objects.add(switchRow(settings, 'comets', 'Comets and meteors'));
         objects.add(events);
 
@@ -152,11 +163,14 @@ export default class SpaceWallpaperPreferences extends ExtensionPreferences {
         const syncObjectRows = () => {
             const selected = selectedObjects(settings);
             const pair = selected.length === 2;
-            const eventsOn = settings.get_boolean('events');
+            const system = isSystem(settings);
+            const eventsOn = settings.get_boolean('events') && !system;
+            firstObject.subtitle = system ? 'Center of the system; a planet or Earth becomes the Sun' : '';
             secondObject.set_sensitive(pair);
-            orbitSpeed.set_sensitive(pair || (eventsOn && hasEvents(selected)));
+            labels.set_sensitive(system);
+            orbitSpeed.set_sensitive(pair || system || (eventsOn && hasEvents(selected)));
             spin.set_sensitive(hasBlackHole(selected, eventsOn));
-            events.set_sensitive(hasEvents(selected));
+            events.set_sensitive(hasEvents(selected, system));
             const disk = hasDisk(selected, eventsOn);
             [rotation, doppler].forEach(row => row.set_sensitive(disk));
         };

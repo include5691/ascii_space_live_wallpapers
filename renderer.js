@@ -5,7 +5,8 @@ import GObject from 'gi://GObject';
 
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 
-import {KINDS, Scene} from './events.js';
+import {EARTH_MAP} from './earthmap.js';
+import {KINDS, PLANET_NAMES, Scene} from './events.js';
 import {ASCII_SHADER, SCENE_SHADER} from './shader.js';
 
 const FOV = 0.36;
@@ -26,8 +27,11 @@ const SCENE_UNIFORMS = [
     'u_bodies', 'u_disks', 'u_kinds', 'u_count', 'u_gw', 'u_burst', 'u_stream', 'u_stream_center',
     'u_tidal', 'u_jets', 'u_kilonova', 'u_flash', 'u_fade', 'u_beams', 'u_background', 'u_star',
     'u_spins', 'u_light', 'u_comet', 'u_comet_ion', 'u_comet_dust', 'u_meteors',
+    'earth_map', 'u_light_color', 'u_planets', 'u_system', 'u_belt', 'u_distance',
 ];
-const ASCII_UNIFORMS = ['scene', 'u_output', 'u_cells', 'u_origin', 'u_font'];
+const ASCII_UNIFORMS = ['scene', 'u_output', 'u_cells', 'u_origin', 'u_font', 'u_labels', 'u_label_text'];
+const LETTERS = 'ACEHIJMNPRSTUVY';
+const LABEL_SLOTS = 8;
 
 const ROUNDED_CLIP_DECLARATIONS = `
 uniform vec4 bounds;
@@ -88,6 +92,47 @@ function createFramebuffer(texture) {
     return framebuffer;
 }
 
+function createEarthTexture(context) {
+    const {width, height, data} = EARTH_MAP;
+    const packed = GLib.base64_decode(data);
+    const pixels = new Uint8Array(width * height * 4);
+    packed.forEach((byte, index) => {
+        [byte >> 4, byte & 15].forEach((level, half) => {
+            const offset = (index * 2 + half) * 4;
+            pixels.fill(level * 17, offset, offset + 3);
+            pixels[offset + 3] = 255;
+        });
+    });
+    return Cogl.Texture2D.new_from_data(context, width, height, Cogl.PixelFormat.RGBA_8888, width * 4, pixels);
+}
+
+const sub = (a, b) => a.map((v, i) => v - b[i]);
+const dot = (a, b) => a.reduce((sum, v, i) => sum + v * b[i], 0);
+const scaled = (a, s) => a.map(v => v * s);
+const cross = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
+const unit = a => scaled(a, 1 / Math.hypot(...a));
+
+function projector({yaw, pitch, roll, distance, fov, aspect}) {
+    const origin = [distance * Math.cos(pitch) * Math.sin(yaw), distance * Math.sin(pitch),
+        distance * Math.cos(pitch) * Math.cos(yaw)];
+    const forward = unit(scaled(origin, -1));
+    const right = unit(cross(forward, [0, 1, 0]));
+    const up = cross(right, forward);
+    const rolledRight = sub(scaled(right, Math.cos(roll)), scaled(up, -Math.sin(roll)));
+    const rolledUp = sub(scaled(up, Math.cos(roll)), scaled(right, Math.sin(roll)));
+    return point => {
+        const relative = sub(point, origin);
+        const depth = dot(relative, forward);
+        if (depth <= 0)
+            return null;
+        return {
+            x: dot(relative, rolledRight) / (depth * fov) / (2 * aspect) + 0.5,
+            y: 0.5 - dot(relative, rolledUp) / (depth * fov) / 2,
+            size: 1 / (depth * fov),
+        };
+    };
+}
+
 function drawFullscreen(framebuffer, pipeline) {
     framebuffer.draw_textured_rectangle(pipeline, 0, 0,
         framebuffer.get_width(), framebuffer.get_height(), 0, 0, 1, 1);
@@ -114,7 +159,7 @@ export const SpaceContent = GObject.registerClass({
         this._time = 0;
         this._camera = null;
         this._zoom = 0;
-        this._scene = new Scene(options.objects, options.events);
+        this._scene = new Scene(options.objects, options.events, options.system);
     }
 
     setMonitor(monitor, scale) {
@@ -133,8 +178,8 @@ export const SpaceContent = GObject.registerClass({
     setOptions(options) {
         const resized = options.charSize !== this._options.charSize;
         this._options = options;
-        if (!this._scene.matches(options.objects, options.events))
-            this._scene = new Scene(options.objects, options.events);
+        if (!this._scene.matches(options.objects, options.events, options.system))
+            this._scene = new Scene(options.objects, options.events, options.system);
         if (resized)
             this._releaseTexture();
         this.advance();
@@ -201,7 +246,14 @@ export const SpaceContent = GObject.registerClass({
     }
 
     _allocate(context) {
-        this._scenePipeline ??= createPipeline(context, SCENE_SHADER, 'renderPixel', SCENE_UNIFORMS);
+        if (!this._scenePipeline) {
+            this._scenePipeline = createPipeline(context, SCENE_SHADER, 'renderPixel', SCENE_UNIFORMS);
+            const {pipeline, uniforms} = this._scenePipeline;
+            pipeline.set_layer_texture(1, createEarthTexture(context));
+            pipeline.set_layer_filters(1, Cogl.PipelineFilter.LINEAR, Cogl.PipelineFilter.LINEAR);
+            pipeline.set_layer_wrap_mode(1, Cogl.PipelineWrapMode.REPEAT);
+            pipeline.set_uniform_1i(uniforms.earth_map, 1);
+        }
         this._asciiPipeline ??= createPipeline(context, ASCII_SHADER, 'asciiPixel', ASCII_UNIFORMS);
 
         const width = Math.round(this._monitor.width * this._scale);
@@ -218,6 +270,7 @@ export const SpaceContent = GObject.registerClass({
         this._texture = Cogl.Texture2D.new_with_size(context, width, height);
         this._framebuffer = createFramebuffer(this._texture);
 
+        this._grid = {columns, rows, aspect: (columns * cellWidth) / (rows * cellHeight)};
         const scene = this._scenePipeline;
         scene.pipeline.set_uniform_float(scene.uniforms.u_resolution, 2, 1,
             [columns * cellWidth, rows * cellHeight]);
@@ -263,18 +316,25 @@ export const SpaceContent = GObject.registerClass({
         const seedA = Math.floor(this._flow) % FLOW_SEEDS;
         const seedB = Math.floor(this._flow + 0.5) % FLOW_SEEDS;
 
+        this._scene.spin = options.spin;
+        this._scene.comets = options.comets;
+        const scene = this._scene.state(this._locked || options.orbitSpeed === 0);
+        const pitch = clamp(this._camera.pitch + scene.lift, -PITCH_LIMIT, PITCH_LIMIT);
+        const fov = FOV * scene.fov / this._zoom;
+
         const {pipeline, uniforms} = this._scenePipeline;
-        pipeline.set_uniform_float(uniforms.u_camera, 3, 1,
-            [this._camera.yaw, this._camera.pitch, options.tilt]);
+        pipeline.set_uniform_float(uniforms.u_camera, 3, 1, [this._camera.yaw, pitch, options.tilt]);
         pipeline.set_uniform_float(uniforms.u_flow, 4, 1, [phaseA, seedA, phaseB, seedB]);
         pipeline.set_uniform_1f(uniforms.u_time, this._time);
         pipeline.set_uniform_1f(uniforms.u_exposure, options.exposure);
         pipeline.set_uniform_1f(uniforms.u_doppler, options.doppler);
 
-        this._scene.spin = options.spin;
-        this._scene.comets = options.comets;
-        const scene = this._scene.state(this._locked || options.orbitSpeed === 0);
-        pipeline.set_uniform_1f(uniforms.u_fov, FOV * scene.fov / this._zoom);
+        pipeline.set_uniform_1f(uniforms.u_fov, fov);
+        pipeline.set_uniform_1f(uniforms.u_distance, scene.distance);
+        pipeline.set_uniform_float(uniforms.u_light_color, 3, 1, scene.lightColor);
+        pipeline.set_uniform_float(uniforms.u_planets, 4, 8, scene.planets);
+        pipeline.set_uniform_1f(uniforms.u_system, scene.system);
+        pipeline.set_uniform_float(uniforms.u_belt, 4, 1, scene.belt);
         const padded = [...scene.bodies, scene.bodies[0]].slice(0, 2);
         pipeline.set_uniform_float(uniforms.u_bodies, 4, 2, padded.flatMap(body => [...body.position, body.scale]));
         pipeline.set_uniform_float(uniforms.u_disks, 4, 2, padded.flatMap(body => [...body.disk, 0]));
@@ -294,9 +354,38 @@ export const SpaceContent = GObject.registerClass({
         pipeline.set_uniform_1f(uniforms.u_meteors, scene.meteors);
         pipeline.set_uniform_1f(uniforms.u_background, options.background === 'milky-way' ? 1 : 0);
 
+        this._updateLabels(scene, {yaw: this._camera.yaw, pitch, roll: options.tilt, distance: scene.distance, fov});
+
         drawFullscreen(this._sceneFramebuffer, pipeline);
         drawFullscreen(this._framebuffer, this._asciiPipeline.pipeline);
         this._dirty = false;
+    }
+
+    _updateLabels(scene, camera) {
+        const labels = new Array(LABEL_SLOTS * 4).fill(0);
+        const text = new Array(LABEL_SLOTS * 8).fill(0);
+        if (scene.system && this._options.labels) {
+            const {columns, rows, aspect} = this._grid;
+            const project = projector({...camera, aspect});
+            PLANET_NAMES.forEach((name, index) => {
+                const planet = scene.planets.slice(index * 4, index * 4 + 4);
+                const spot = project(planet.slice(0, 3));
+                if (!spot)
+                    return;
+                const reach = planet[3] * spot.size;
+                const column = Math.floor(spot.x * columns + reach * columns / (2 * aspect)) + 1;
+                const row = Math.floor(spot.y * rows - Math.max(reach * rows / 2, 1));
+                if (row < 0 || row >= rows || column < 0 || column + name.length > columns)
+                    return;
+                labels.splice(index * 4, 4, column, row, name.length, 0.9);
+                [...name].forEach((letter, slot) => {
+                    text[index * 8 + slot] = LETTERS.indexOf(letter) + 1;
+                });
+            });
+        }
+        const {pipeline, uniforms} = this._asciiPipeline;
+        pipeline.set_uniform_float(uniforms.u_labels, 4, LABEL_SLOTS, labels);
+        pipeline.set_uniform_float(uniforms.u_label_text, 4, LABEL_SLOTS * 2, text);
     }
 
     _updateCamera(dt) {

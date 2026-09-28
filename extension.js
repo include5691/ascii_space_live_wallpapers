@@ -19,6 +19,8 @@ const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
 function readOptions(settings) {
     return {
         charSize: settings.get_uint('char-size'),
+        system: settings.get_string('mode') === 'system',
+        labels: settings.get_boolean('labels'),
         objects: settings.get_string('mode') === 'pair'
             ? [settings.get_string('first-object'), settings.get_string('second-object')]
             : [settings.get_string('first-object')],

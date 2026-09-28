@@ -6,7 +6,7 @@ const COMET_PERIOD = 70;
 const COMET_DURATION = 40;
 const COMET_REACH = 26;
 const COMET_CLEARANCE = 5.5;
-const DEFAULT_LIGHT = [-0.72, 0.36, 0.6];
+const DEFAULT_LIGHT = [-0.5, 0.35, 0.8];
 const DISK_OUTER = 17;
 const BLACK_HOLE_DISK_INNER = 2.1;
 const NEUTRON_DISK_INNER = 5.5;
@@ -26,13 +26,36 @@ const REMNANT_TIME = 50;
 const EXPLOSION_TIME = STABLE_TIME + SWELL_TIME + COLLAPSE_TIME;
 const INSPIRAL_CHIRP = INSPIRAL_TIME / (1 - (MIN_SEPARATION / SEPARATION) ** 4);
 
-export const KINDS = {'black-hole': 0, 'neutron-star': 1, 'star': 2, 'wormhole': 3, 'planet': 4};
+export const KINDS = {'black-hole': 0, 'neutron-star': 1, 'star': 2, 'wormhole': 3, 'planet': 4, 'earth': 5};
 
-const MASS = {'black-hole': 1, 'neutron-star': 1, 'star': 0.5, 'wormhole': 1, 'planet': 0.4};
+const MASS = {'black-hole': 1, 'neutron-star': 1, 'star': 0.5, 'wormhole': 1, 'planet': 0.4, 'earth': 0.4};
 const PAIR_FOV = 1.15;
 const BLACK_HOLE_SHADOW = 2.6;
 
-const SINGLE_SCALE = {'star': SINGLE_STAR_SCALE, 'planet': SINGLE_PLANET_SCALE};
+const SINGLE_SCALE = {'star': SINGLE_STAR_SCALE, 'planet': SINGLE_PLANET_SCALE, 'earth': 0.9};
+
+const SYSTEM_PLANETS = [
+    {orbit: 4.5, radius: 0.45, years: 0.24, start: 0.3},
+    {orbit: 6.0, radius: 0.7, years: 0.62, start: 2.1},
+    {orbit: 7.6, radius: 0.75, years: 1, start: 4.0},
+    {orbit: 9.3, radius: 0.55, years: 1.88, start: 5.5},
+    {orbit: 14.0, radius: 1.7, years: 11.9, start: 1.2},
+    {orbit: 17.5, radius: 1.45, years: 29.5, start: 3.3},
+    {orbit: 20.5, radius: 1.0, years: 84, start: 0.8},
+    {orbit: 23.0, radius: 0.95, years: 165, start: 2.7},
+];
+export const PLANET_NAMES = ['MERCURY', 'VENUS', 'EARTH', 'MARS', 'JUPITER', 'SATURN', 'URANUS', 'NEPTUNE'];
+const SYSTEM_YEAR = 24;
+const SYSTEM_BELT = [10.6, 12.2];
+const SYSTEM_DISTANCE = 42;
+const SYSTEM_LIFT = 0.4;
+const SYSTEM_FOV = 1.35;
+const SYSTEM_CENTERS = {
+    'star': {scale: 0.5, light: [1, 0.97, 0.9]},
+    'black-hole': {scale: 0.6, light: [0.8, 0.58, 0.36], disk: 5.5},
+    'neutron-star': {scale: 0.6, light: [0.52, 0.62, 0.8]},
+    'wormhole': {scale: 0.8, light: [0.35, 0.63, 0.63]},
+};
 
 const SCENARIOS = {
     'black-hole+black-hole': 'merger',
@@ -102,10 +125,14 @@ function radiusOf(kind, scale) {
 }
 
 export class Scene {
-    constructor(objects, events) {
+    constructor(objects, events, system = false) {
         this._objects = objects;
         this._events = events;
-        if (objects.length === 1)
+        this._system = system;
+        this._planetAngles = SYSTEM_PLANETS.map(planet => planet.start);
+        if (system)
+            this._scenario = 'system';
+        else if (objects.length === 1)
             this._scenario = events && objects[0] === 'star' ? 'supernova' : 'single';
         else
             this._scenario = events ? SCENARIOS[[...objects].sort().join('+')] ?? 'orbit' : 'orbit';
@@ -124,8 +151,8 @@ export class Scene {
         this._comets = value;
     }
 
-    matches(objects, events) {
-        return objects.join('+') === this._objects.join('+') && events === this._events;
+    matches(objects, events, system = false) {
+        return objects.join('+') === this._objects.join('+') && events === this._events && system === this._system;
     }
 
     advance(dt, realDt = dt) {
@@ -137,6 +164,8 @@ export class Scene {
             this._looped = true;
             this._cycle++;
         }
+        this._planetAngles = this._planetAngles.map((angle, index) =>
+            (angle - dt * 2 * Math.PI / (SYSTEM_YEAR * Math.sqrt(SYSTEM_PLANETS[index].years))) % (2 * Math.PI));
         const speed = ANGULAR_SPEED * (SEPARATION / this._separation()) ** 1.5;
         this._angle = (this._angle - dt * speed) % (2 * Math.PI);
     }
@@ -162,10 +191,19 @@ export class Scene {
             cometIon: [1, 0, 0, 1],
             cometDust: [1, 0, 0, 1],
             meteors: this._comets ? 1 : 0,
+            lightColor: [1, 1, 1],
+            planets: new Array(32).fill(0),
+            system: 0,
+            belt: [0, 0, 0, 0],
+            distance: 22,
+            lift: 0,
         };
         switch (this._scenario) {
         case 'single':
             this._single(state);
+            break;
+        case 'system':
+            this._solarSystem(state);
             break;
         case 'devour':
             this._devour(state);
@@ -184,7 +222,7 @@ export class Scene {
         }
 
         const star = state.bodies.find(candidate => candidate.kind === 'star');
-        if (star && this._scenario !== 'supernova')
+        if (star && this._scenario !== 'supernova' && this._scenario !== 'system')
             state.light = [...star.position, 1];
         this._comet(state);
 
@@ -230,6 +268,23 @@ export class Scene {
     _single(state) {
         const [kind] = this._objects;
         state.bodies = [body(kind, [0, 0, 0], SINGLE_SCALE[kind] ?? 1)];
+    }
+
+    _solarSystem(state) {
+        const kind = SYSTEM_CENTERS[this._objects[0]] ? this._objects[0] : 'star';
+        const center = SYSTEM_CENTERS[kind];
+        state.bodies = [body(kind, [0, 0, 0], center.scale, kind === 'black-hole' ? 1 : 0, center.disk ?? DISK_OUTER)];
+        state.light = [0, 0, 0, 1];
+        state.lightColor = center.light;
+        state.planets = SYSTEM_PLANETS.flatMap((planet, index) => {
+            const angle = this._planetAngles[index];
+            return [Math.cos(angle) * planet.orbit, 0, Math.sin(angle) * planet.orbit, planet.radius];
+        });
+        state.system = 1;
+        state.belt = [...SYSTEM_BELT, 1, 0];
+        state.distance = SYSTEM_DISTANCE;
+        state.lift = SYSTEM_LIFT;
+        state.fov = SYSTEM_FOV;
     }
 
     _comet(state) {

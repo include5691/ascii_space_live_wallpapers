@@ -19,6 +19,13 @@ const OBJECTS = [
     ['earth', 'Earth'],
 ];
 
+const CENTERS = [
+    ['star', 'Sun'],
+    ['black-hole', 'Black hole'],
+    ['neutron-star', 'Neutron star'],
+    ['wormhole', 'Wormhole'],
+];
+
 const EVENT_PAIRS = new Set([
     'black-hole+black-hole',
     'neutron-star+neutron-star',
@@ -29,7 +36,10 @@ const EVENT_PAIRS = new Set([
 
 function selectedObjects(settings) {
     const first = settings.get_string('first-object');
-    return settings.get_string('mode') === 'pair' ? [first, settings.get_string('second-object')] : [first];
+    return {
+        pair: [first, settings.get_string('second-object')],
+        system: [settings.get_string('center')],
+    }[settings.get_string('mode')] ?? [first];
 }
 
 function isSystem(settings) {
@@ -114,8 +124,10 @@ export default class SpaceWallpaperPreferences extends ExtensionPreferences {
         const orbitSpeed = spinRow(settings, 'orbit-speed', 'Speed', 'Orbits and cosmic events, in percent');
         objects.add(comboRow(settings, 'mode', 'Mode', MODES));
         const firstObject = comboRow(settings, 'first-object', 'First object', OBJECTS);
+        const center = comboRow(settings, 'center', 'Center', CENTERS);
         const labels = switchRow(settings, 'labels', 'Planet names');
         objects.add(firstObject);
+        objects.add(center);
         objects.add(secondObject);
         objects.add(orbitSpeed);
         const spin = spinRow(settings, 'spin', 'Black hole spin', 'Percent of the maximum; drags space and squashes the shadow');
@@ -165,7 +177,8 @@ export default class SpaceWallpaperPreferences extends ExtensionPreferences {
             const pair = selected.length === 2;
             const system = isSystem(settings);
             const eventsOn = settings.get_boolean('events') && !system;
-            firstObject.subtitle = system ? 'Center of the system; a planet or Earth becomes the Sun' : '';
+            firstObject.set_visible(!system);
+            center.set_visible(system);
             secondObject.set_sensitive(pair);
             labels.set_sensitive(system);
             orbitSpeed.set_sensitive(pair || system || (eventsOn && hasEvents(selected)));
@@ -175,7 +188,7 @@ export default class SpaceWallpaperPreferences extends ExtensionPreferences {
             [rotation, doppler].forEach(row => row.set_sensitive(disk));
         };
         syncObjectRows();
-        ['mode', 'first-object', 'second-object', 'events'].forEach(key => connectSetting(settings, key, spin, syncObjectRows));
+        ['mode', 'first-object', 'second-object', 'center', 'events'].forEach(key => connectSetting(settings, key, spin, syncObjectRows));
 
         const page = new Adw.PreferencesPage();
         [objects, performance, cursor, scene].forEach(group => page.add(group));

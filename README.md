@@ -84,9 +84,10 @@ gnome-extensions prefs space-wallpaper@include5691.github.io
 | Mode | single | single, pair, solar system |
 | Black hole spin | 60 % | 0 – 99 |
 | Comets and meteors | on | |
-| First object (center of a solar system) | black hole | black hole, neutron star, star, wormhole, ringed planet, Earth |
+| First object | black hole | black hole, neutron star, star, wormhole, ringed planet, Earth |
 | Second object (pair) | black hole | black hole, neutron star, star, wormhole, ringed planet, Earth |
-| Planet names (solar system) | on | |
+| Center (solar system) | Sun | Sun, black hole, neutron star, wormhole |
+| Planet names (solar system) | off | |
 | Speed | 100 % | 0 – 400, orbits and cosmic events |
 | Cosmic events | on | |
 | Frame rate | 30 fps | 5 – 60 |

@@ -21,9 +21,10 @@ function readOptions(settings) {
         charSize: settings.get_uint('char-size'),
         system: settings.get_string('mode') === 'system',
         labels: settings.get_boolean('labels'),
-        objects: settings.get_string('mode') === 'pair'
-            ? [settings.get_string('first-object'), settings.get_string('second-object')]
-            : [settings.get_string('first-object')],
+        objects: {
+            pair: [settings.get_string('first-object'), settings.get_string('second-object')],
+            system: [settings.get_string('center')],
+        }[settings.get_string('mode')] ?? [settings.get_string('first-object')],
         orbitSpeed: settings.get_uint('orbit-speed') / 100,
         events: settings.get_boolean('events'),
         background: settings.get_string('background'),

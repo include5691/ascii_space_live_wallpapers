@@ -1,10 +1,10 @@
-# Black Hole Wallpaper
+# Space Wallpaper
 
-A live ASCII-art black hole wallpaper for GNOME, rendered on the GPU.
+A live ASCII-art space wallpaper for GNOME, rendered on the GPU: black holes, neutron stars, stars and wormholes.
 
 Light rays bend around the black hole, so the far side of the disk shows up above and below it. The scene is drawn as colored ASCII characters. The disk spins, stars twinkle, and the camera turns toward your cursor. The lock screen shows the same black hole as a still image.
 
-![Black Hole Wallpaper](assets/preview.png)
+![Space Wallpaper](assets/preview.png)
 
 ![Lock screen](assets/lock.png)
 
@@ -47,15 +47,15 @@ GNOME Shell 50.
 ## Install
 
 ```sh
-git clone https://github.com/include5691/gnome_black_hole_live_wallpaper_extension.git
-cd gnome_black_hole_live_wallpaper_extension
+git clone https://github.com/include5691/gnome_space_live_wallpaper_extension.git
+cd gnome_space_live_wallpaper_extension
 make install
 ```
 
 Log out and back in, because Wayland cannot reload GNOME Shell in place. Then enable it:
 
 ```sh
-gnome-extensions enable black-hole-wallpaper@include5691.github.io
+gnome-extensions enable space-wallpaper@include5691.github.io
 ```
 
 **Update:** `git pull && make install`, then log out and back in.
@@ -63,14 +63,14 @@ gnome-extensions enable black-hole-wallpaper@include5691.github.io
 **Uninstall:**
 
 ```sh
-gnome-extensions disable black-hole-wallpaper@include5691.github.io
+gnome-extensions disable space-wallpaper@include5691.github.io
 make uninstall
 ```
 
 ## Settings
 
 ```sh
-gnome-extensions prefs black-hole-wallpaper@include5691.github.io
+gnome-extensions prefs space-wallpaper@include5691.github.io
 ```
 
 | Setting | Default | Range |

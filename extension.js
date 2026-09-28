@@ -6,7 +6,7 @@ import {Extension, InjectionManager} from 'resource:///org/gnome/shell/extension
 import * as Background from 'resource:///org/gnome/shell/ui/background.js';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 
-import {BlackHoleContent} from './renderer.js';
+import {SpaceContent} from './renderer.js';
 
 const MIN_SMOOTHING = 0.03;
 const MAX_SMOOTHING = 1.5;
@@ -82,7 +82,7 @@ function isMonitorCovered(index) {
         window.is_maximized());
 }
 
-export default class BlackHoleWallpaperExtension extends Extension {
+export default class SpaceWallpaperExtension extends Extension {
     enable() {
         this._settings = this.getSettings();
         this._options = readOptions(this._settings);
@@ -136,7 +136,7 @@ export default class BlackHoleWallpaperExtension extends Extension {
             return null;
 
         if (!this._contents[index]) {
-            this._contents[index] = new BlackHoleContent(this._options);
+            this._contents[index] = new SpaceContent(this._options);
             this._contents[index].setMonitor(monitor, global.display.get_monitor_scale(index));
             this._contents[index].setLocked(Main.sessionMode.isLocked);
         }
@@ -148,7 +148,7 @@ export default class BlackHoleWallpaperExtension extends Extension {
         if (!content)
             return;
 
-        const view = new Clutter.Actor({name: 'black-hole-wallpaper', content});
+        const view = new Clutter.Actor({name: 'space-wallpaper', content});
         view.add_constraint(new Clutter.BindConstraint({
             source: backgroundActor,
             coordinate: Clutter.BindCoordinate.SIZE,

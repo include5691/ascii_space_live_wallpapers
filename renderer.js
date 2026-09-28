@@ -92,9 +92,9 @@ function drawFullscreen(framebuffer, pipeline) {
         framebuffer.get_width(), framebuffer.get_height(), 0, 0, 1, 1);
 }
 
-export const BlackHoleContent = GObject.registerClass({
+export const SpaceContent = GObject.registerClass({
     Implements: [Clutter.Content],
-}, class BlackHoleContent extends GObject.Object {
+}, class SpaceContent extends GObject.Object {
     _init(options) {
         super._init();
         this._options = options;
@@ -160,7 +160,7 @@ export const BlackHoleContent = GObject.registerClass({
             this._render();
 
         const pipelineNode = new Clutter.PipelineNode(this._viewPipeline(actor, paintContext));
-        pipelineNode.set_name('BlackHoleContent');
+        pipelineNode.set_name('SpaceContent');
         node.add_child(pipelineNode);
         pipelineNode.add_rectangle(actor.get_content_box());
     }

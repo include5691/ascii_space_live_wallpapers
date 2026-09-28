@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <schemalist>
-  <schema id="org.gnome.shell.extensions.black-hole-wallpaper" path="/org/gnome/shell/extensions/black-hole-wallpaper/">
+  <schema id="org.gnome.shell.extensions.space-wallpaper" path="/org/gnome/shell/extensions/space-wallpaper/">
     <key name="mode" type="s">
       <choices>
         <choice value="single"/>

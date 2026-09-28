@@ -65,7 +65,7 @@ function resetButton(settings, keys) {
     return button;
 }
 
-export default class BlackHoleWallpaperPreferences extends ExtensionPreferences {
+export default class SpaceWallpaperPreferences extends ExtensionPreferences {
     fillPreferencesWindow(window) {
         const settings = this.getSettings();
         window._settings = settings;

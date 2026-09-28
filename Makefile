@@ -1,4 +1,4 @@
-UUID := black-hole-wallpaper@include5691.github.io
+UUID := space-wallpaper@include5691.github.io
 BUNDLE := $(UUID).shell-extension.zip
 SOURCES := metadata.json extension.js prefs.js renderer.js events.js shader.js $(wildcard schemas/*.xml)
 

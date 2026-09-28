@@ -59,7 +59,7 @@ gnome-extensions prefs black-hole-wallpaper@include5691.github.io
 | Frame rate | 30 fps | 5 – 60 |
 | Pause behind windows | on | |
 | Follow cursor | on | |
-| Sensitivity | 50 % | 0 – 100 |
+| Sensitivity | 50 % | 0 – 200 |
 | Smoothness | 40 % | 0 – 100 |
 | Character size | 3 | 1 – 8 |
 | Rotation speed | 100 % | 0 – 400 |

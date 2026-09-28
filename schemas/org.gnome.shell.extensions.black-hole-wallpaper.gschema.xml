@@ -20,7 +20,7 @@
       <summary>Turn the camera toward the cursor</summary>
     </key>
     <key name="cursor-sensitivity" type="u">
-      <range min="0" max="100"/>
+      <range min="0" max="200"/>
       <default>50</default>
       <summary>How far the camera turns when the cursor reaches the screen edge</summary>
     </key>

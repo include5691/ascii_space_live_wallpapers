@@ -171,7 +171,7 @@ export class Scene {
                 this._supernova(state);
             break;
         case 'orbit':
-            state.bodies = this._pair(SEPARATION, [0, 0]);
+            state.bodies = this._pair(SEPARATION, this._objects.map(kind => (kind === 'black-hole' ? 1 : 0)));
             break;
         default:
             this._inspiral(state);

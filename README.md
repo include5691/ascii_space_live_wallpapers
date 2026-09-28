@@ -12,12 +12,14 @@ Light rays bend around the black hole, so the far side of the disk shows up abov
 
 - Real-time ray tracing of light around a black hole, in a GLSL shader.
 - Drawn as ASCII characters in the scene's own colors, from ` .:-+=*%#@`.
-- Five object types:
+- Six object types:
   - a spinning black hole with an accretion disk. Spin drags space around it, which squashes the shadow into a D shape, and pulls the disk's inner edge closer, following the Kerr ISCO;
   - a lone neutron star (pulsar) with rotating hot spots and sweeping beams, and no disk, like most real pulsars;
   - a Sun-like star with limb darkening, granulation, sunspots and a corona;
   - a wormhole: its mouth bends light like a black hole, and through its throat you see another universe with a spinning spiral galaxy;
-  - a ringed planet: a banded gas giant with a storm, lit by a sun, with rings that it shadows and that shadow it, and three moons on tilted orbits. Next to a star, it is lit by that star.
+  - a ringed planet: a banded gas giant with a storm, lit by a sun, with rings that it shadows and that shadow it, and three moons on tilted orbits. Next to a star, it is lit by that star;
+  - Earth: real continents from a world map, oceans with sun glint, drifting clouds, polar ice, a blue atmosphere, city lights on the night side, the Moon with dark maria, the ISS and a Starlink train.
+- A solar system mode: eight planets with their own looks, faint orbit lines, an asteroid belt and Saturn's rings. The center is any object you pick: the Sun, a black hole, a neutron star or a wormhole. The center lights and bends everything. Planet names can be shown in the same pixel font.
 - A Milky Way sky: a glowing band with dust lanes, a bright core, denser stars and colored nebulae, bent by every object. Or plain stars.
 - A single star lives out one of two real fates, taking turns:
   - planetary nebula: it swells into a red giant, then puffs off a glowing ring nebula, teal inside and red outside, around a tiny blue-white dwarf;
@@ -79,11 +81,12 @@ gnome-extensions prefs space-wallpaper@include5691.github.io
 
 | Setting | Default | Range |
 | --- | --- | --- |
-| Mode | single | single, pair |
+| Mode | single | single, pair, solar system |
 | Black hole spin | 60 % | 0 – 99 |
 | Comets and meteors | on | |
-| First object | black hole | black hole, neutron star, star, wormhole, ringed planet |
-| Second object (pair) | black hole | black hole, neutron star, star, wormhole, ringed planet |
+| First object (center of a solar system) | black hole | black hole, neutron star, star, wormhole, ringed planet, Earth |
+| Second object (pair) | black hole | black hole, neutron star, star, wormhole, ringed planet, Earth |
+| Planet names (solar system) | on | |
 | Speed | 100 % | 0 – 400, orbits and cosmic events |
 | Cosmic events | on | |
 | Frame rate | 30 fps | 5 – 60 |
@@ -106,8 +109,9 @@ GPU time per frame on an Intel Arc B390 with a 3120×2080 screen and the default
 
 | Scene | Time |
 | --- | --- |
-| One object | 0.6 – 1.0 ms |
+| One object | 0.6 – 1.8 ms |
 | A pair, including events | 0.8 – 2.0 ms |
+| Solar system | 1.1 – 1.4 ms |
 
 At 30 fps that is 2 – 6 % of the GPU. The Milky Way adds about 0.3 ms.
 
@@ -129,6 +133,7 @@ At 30 fps that is 2 – 6 % of the GPU. The Milky Way adds about 0.3 ms.
 | `renderer.js` | Offscreen passes, camera and cursor easing |
 | `events.js` | Object layout, orbits, lighting, comets, pair events and the star life cycles |
 | `shader.js` | Scene and ASCII GLSL shaders |
+| `earthmap.js` | 256×128 land mask of the Earth |
 | `prefs.js` | Preferences window |
 | `schemas/` | GSettings schema |
 
@@ -139,6 +144,10 @@ Watch the logs:
 ```sh
 journalctl -f -o cat /usr/bin/gnome-shell
 ```
+
+## Credits
+
+The Earth's coastlines come from [Natural Earth](https://www.naturalearthdata.com/) 1:110m land, which is in the public domain.
 
 ## License
 

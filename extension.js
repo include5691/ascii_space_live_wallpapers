@@ -48,8 +48,14 @@ function isDesktopAt(x, y) {
     for (; actor; actor = actor.get_parent()) {
         if (actor instanceof Meta.BackgroundActor)
             return true;
+        if (actor instanceof Meta.WindowActor)
+            return actor.get_meta_window().get_window_type() === Meta.WindowType.DESKTOP;
     }
     return false;
+}
+
+function canZoom() {
+    return !Main.overview.visible && !Main.sessionMode.isLocked && Main.modalCount === 0;
 }
 
 function hasZoomModifiers(event) {
@@ -93,7 +99,10 @@ export default class BlackHoleWallpaperExtension extends Extension {
 
         Main.layoutManager.connectObject('monitors-changed', () => this._syncMonitors(), this);
         Main.sessionMode.connectObject('updated', () => this._syncLock(), this);
-        global.stage.connectObject('captured-event::scroll', (stage, event) => this._onScroll(event), this);
+        global.stage.connectObject(
+            'captured-event::scroll', (stage, event) => this._onScroll(event),
+            'captured-event::touchpad', (stage, event) => this._onPinch(event),
+            this);
         this._settings.connectObject('changed', (settings, key) => this._onSettingChanged(key), this);
         this._syncLock();
     }
@@ -191,7 +200,7 @@ export default class BlackHoleWallpaperExtension extends Extension {
     }
 
     _onScroll(event) {
-        if (Main.overview.visible || Main.sessionMode.isLocked || Main.modalCount > 0)
+        if (!canZoom())
             return Clutter.EVENT_PROPAGATE;
 
         const result = hasZoomModifiers(event) ? Clutter.EVENT_STOP : Clutter.EVENT_PROPAGATE;
@@ -201,7 +210,31 @@ export default class BlackHoleWallpaperExtension extends Extension {
             return result;
 
         const [, dy] = event.get_scroll_delta();
-        const zoom = clamp(this._options.zoom * Math.exp(-dy * ZOOM_PER_SCROLL), ...this._zoomRange);
+        this._setZoom(this._options.zoom * Math.exp(-dy * ZOOM_PER_SCROLL));
+        return result;
+    }
+
+    _onPinch(event) {
+        if (event.type() !== Clutter.EventType.TOUCHPAD_PINCH ||
+            event.get_touchpad_gesture_finger_count() !== 2)
+            return Clutter.EVENT_PROPAGATE;
+
+        switch (event.get_gesture_phase()) {
+        case Clutter.TouchpadGesturePhase.BEGIN:
+            this._pinchStartZoom = canZoom() && isDesktopAt(...event.get_coords()) ? this._options.zoom : 0;
+            break;
+        case Clutter.TouchpadGesturePhase.UPDATE:
+            if (this._pinchStartZoom)
+                this._setZoom(this._pinchStartZoom * event.get_gesture_pinch_scale());
+            break;
+        default:
+            this._pinchStartZoom = 0;
+        }
+        return Clutter.EVENT_PROPAGATE;
+    }
+
+    _setZoom(value) {
+        const zoom = clamp(value, ...this._zoomRange);
         this._options = {...this._options, zoom};
         this._contents.forEach(content => content.setOptions(this._options));
 
@@ -211,7 +244,6 @@ export default class BlackHoleWallpaperExtension extends Extension {
             this._settings.set_uint('zoom', Math.round(zoom * 100));
             return GLib.SOURCE_REMOVE;
         });
-        return result;
     }
 
     _cancelZoomSave() {

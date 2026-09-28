@@ -10,8 +10,11 @@ import {BlackHoleContent} from './renderer.js';
 
 const MIN_SMOOTHING = 0.03;
 const MAX_SMOOTHING = 1.5;
+const ZOOM_PER_SCROLL = 0.1;
+const ZOOM_SAVE_DELAY = 400;
 
 const radians = degrees => degrees * Math.PI / 180;
+const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
 
 function readOptions(settings) {
     return {
@@ -40,6 +43,17 @@ function* findBackgroundActors(actor) {
     }
 }
 
+function isDesktopAt(x, y) {
+    let actor = global.stage.get_actor_at_pos(Clutter.PickMode.REACTIVE, x, y);
+    for (; actor; actor = actor.get_parent()) {
+        if (actor instanceof Meta.BackgroundActor)
+            return true;
+        if (actor instanceof Meta.WindowActor)
+            return actor.get_meta_window().get_window_type() === Meta.WindowType.DESKTOP;
+    }
+    return false;
+}
+
 function isMonitorCovered(index) {
     if (Main.overview.visible)
         return false;
@@ -59,6 +73,9 @@ export default class BlackHoleWallpaperExtension extends Extension {
         this._options = readOptions(this._settings);
         this._contents = [];
         this._views = new Set();
+        const zoomRange = this._settings.settings_schema.get_key('zoom').get_range();
+        const [, [minZoom, maxZoom]] = zoomRange.recursiveUnpack();
+        this._zoomRange = [minZoom / 100, maxZoom / 100];
 
         const extension = this;
         this._injectionManager = new InjectionManager();
@@ -73,6 +90,7 @@ export default class BlackHoleWallpaperExtension extends Extension {
 
         Main.layoutManager.connectObject('monitors-changed', () => this._syncMonitors(), this);
         Main.sessionMode.connectObject('updated', () => this._syncLock(), this);
+        global.stage.connectObject('captured-event::scroll', (stage, event) => this._onScroll(event), this);
         this._settings.connectObject('changed', (settings, key) => this._onSettingChanged(key), this);
         this._syncLock();
     }
@@ -80,6 +98,8 @@ export default class BlackHoleWallpaperExtension extends Extension {
     disable() {
         // unlock-dialog keeps the extension enabled so the lock screen shows a still black hole
         this._stopTimer();
+        this._cancelZoomSave();
+        global.stage.disconnectObject(this);
         this._settings.disconnectObject(this);
         Main.layoutManager.disconnectObject(this);
         Main.sessionMode.disconnectObject(this);
@@ -158,8 +178,39 @@ export default class BlackHoleWallpaperExtension extends Extension {
             return;
         }
 
+        if (key === 'zoom')
+            this._cancelZoomSave();
+        const {zoom} = this._options;
         this._options = readOptions(this._settings);
+        if (this._zoomSaveId || Math.round(zoom * 100) === Math.round(this._options.zoom * 100))
+            this._options.zoom = zoom;
         this._contents.forEach(content => content.setOptions(this._options));
+    }
+
+    _onScroll(event) {
+        if (event.get_scroll_direction() !== Clutter.ScrollDirection.SMOOTH ||
+            Main.overview.visible || Main.sessionMode.isLocked || Main.modalCount > 0 ||
+            !isDesktopAt(...event.get_coords()))
+            return Clutter.EVENT_PROPAGATE;
+
+        const [, dy] = event.get_scroll_delta();
+        const zoom = clamp(this._options.zoom * Math.exp(-dy * ZOOM_PER_SCROLL), ...this._zoomRange);
+        this._options = {...this._options, zoom};
+        this._contents.forEach(content => content.setOptions(this._options));
+
+        this._cancelZoomSave();
+        this._zoomSaveId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, ZOOM_SAVE_DELAY, () => {
+            this._zoomSaveId = 0;
+            this._settings.set_uint('zoom', Math.round(zoom * 100));
+            return GLib.SOURCE_REMOVE;
+        });
+        return Clutter.EVENT_PROPAGATE;
+    }
+
+    _cancelZoomSave() {
+        if (this._zoomSaveId)
+            GLib.Source.remove(this._zoomSaveId);
+        this._zoomSaveId = 0;
     }
 
     _startTimer() {

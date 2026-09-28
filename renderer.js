@@ -15,6 +15,7 @@ const MAX_FRAME_TIME = 0.25;
 const MAX_YAW = Math.PI / 3;
 const MAX_PITCH = Math.PI / 7;
 const PITCH_LIMIT = Math.PI * 0.45;
+const ZOOM_SMOOTHING = 0.12;
 const CELL_WIDTH = 6;
 const CELL_HEIGHT = 9;
 const SAMPLES_PER_CELL = 2;
@@ -106,6 +107,7 @@ export const BlackHoleContent = GObject.registerClass({
         this._flow = 0;
         this._time = 0;
         this._camera = null;
+        this._zoom = 0;
     }
 
     setMonitor(monitor, scale) {
@@ -242,6 +244,9 @@ export const BlackHoleContent = GObject.registerClass({
         this._flow += dt * options.speed / FLOW_PERIOD;
         this._time = (this._time + dt) % TIME_PERIOD;
         this._updateCamera(dt);
+        this._zoom = this._zoom
+            ? this._zoom + (options.zoom - this._zoom) * (1 - Math.exp(-dt / ZOOM_SMOOTHING))
+            : options.zoom;
 
         const phaseA = this._flow % 1;
         const phaseB = (this._flow + 0.5) % 1;
@@ -252,7 +257,7 @@ export const BlackHoleContent = GObject.registerClass({
         pipeline.set_uniform_float(uniforms.u_camera, 3, 1,
             [this._camera.yaw, this._camera.pitch, options.tilt]);
         pipeline.set_uniform_float(uniforms.u_flow, 4, 1, [phaseA, seedA, phaseB, seedB]);
-        pipeline.set_uniform_1f(uniforms.u_fov, FOV / options.zoom);
+        pipeline.set_uniform_1f(uniforms.u_fov, FOV / this._zoom);
         pipeline.set_uniform_1f(uniforms.u_time, this._time);
         pipeline.set_uniform_1f(uniforms.u_exposure, options.exposure);
         pipeline.set_uniform_1f(uniforms.u_doppler, options.doppler);

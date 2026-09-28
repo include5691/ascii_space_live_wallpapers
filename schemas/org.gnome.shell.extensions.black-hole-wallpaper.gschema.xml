@@ -45,7 +45,7 @@
       <summary>Camera roll in degrees</summary>
     </key>
     <key name="zoom" type="u">
-      <range min="50" max="200"/>
+      <range min="25" max="400"/>
       <default>100</default>
       <summary>Zoom in percent</summary>
     </key>

@@ -13,6 +13,7 @@ Light rays bend around the black hole, so the far side of the disk shows up abov
 - Real-time ray tracing of light around a black hole, in a GLSL shader.
 - Drawn as ASCII characters in the scene's own colors, from ` .:-+=*%#@`.
 - Moving the cursor turns the camera. The camera eases after it.
+- Scrolling on the desktop zooms in and out, with the mouse wheel or two fingers on a touchpad. The zoom is saved.
 - Rendered once per frame and shared by the desktop, the overview and the workspace switcher.
 - Pauses while a maximized or fullscreen window covers the monitor.
 - Works with several monitors, each with its own view.
@@ -62,7 +63,7 @@ gnome-extensions prefs black-hole-wallpaper@include5691.github.io
 | Rotation speed | 100 % | 0 – 400 |
 | Camera height | 8° | -30 – 60 |
 | Tilt | 9° | -45 – 45 |
-| Zoom | 100 % | 50 – 200 |
+| Zoom | 100 % | 25 – 400 |
 | Brightness | 100 % | 25 – 400 |
 | Doppler effect | 40 % | 0 – 100 |
 

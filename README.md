@@ -19,7 +19,7 @@ Light rays bend around the black hole, so the far side of the disk shows up abov
   - a wormhole: its mouth bends light like a black hole, and through its throat you see another universe with a spinning spiral galaxy;
   - a ringed planet: a banded gas giant with a storm, lit by a sun, with rings that it shadows and that shadow it, and three moons on tilted orbits. Next to a star, it is lit by that star;
   - Earth: real continents from a world map, oceans with sun glint, drifting clouds, polar ice, a blue atmosphere, city lights on the night side, the Moon with dark maria, the ISS and a Starlink train.
-- A solar system mode: eight planets with their own looks, faint orbit lines, an asteroid belt and Saturn's rings. The center is any object you pick: the Sun, a black hole, a neutron star or a wormhole. The center lights and bends everything. Planet names can be shown in the same pixel font.
+- A solar system mode: eight planets with their own looks, faint orbit lines, an asteroid belt and Saturn's rings. The center is any object you pick: the Sun, a black hole, a neutron star or a wormhole. The center lights everything; a black hole, neutron star or wormhole also bends the light. Planet names can be shown in the same pixel font.
 - A Milky Way sky: a glowing band with dust lanes, a bright core, denser stars and colored nebulae, bent by every object. Or plain stars.
 - A single star lives out one of two real fates, taking turns:
   - planetary nebula: it swells into a red giant, then puffs off a glowing ring nebula, teal inside and red outside, around a tiny blue-white dwarf;

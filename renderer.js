@@ -134,6 +134,15 @@ function projector({yaw, pitch, roll, distance, fov, aspect}) {
     };
 }
 
+function lensed(spot, center, mass, fov, aspect) {
+    const offset = [(spot.x - center.x) * 2 * aspect * fov, (center.y - spot.y) * 2 * fov];
+    const source = Math.hypot(...offset);
+    const einstein = 2 * mass * (spot.depth - center.depth) / (spot.depth * center.depth);
+    const image = (source + Math.sqrt(source * source + 4 * einstein)) / 2;
+    const [dx, dy] = source > 0 ? offset.map(v => v / source * image / fov) : [0, image / fov];
+    return {...spot, x: center.x + dx / (2 * aspect), y: center.y - dy / 2};
+}
+
 function drawFullscreen(framebuffer, pipeline) {
     framebuffer.draw_textured_rectangle(pipeline, 0, 0,
         framebuffer.get_width(), framebuffer.get_height(), 0, 0, 1, 1);
@@ -307,7 +316,10 @@ export const SpaceContent = GObject.registerClass({
         this._flow += dt * options.speed / FLOW_PERIOD;
         this._time = (this._time + dt) % TIME_PERIOD;
         this._scene.advance(dt * options.orbitSpeed, dt);
-        this._updateCamera(dt);
+        this._scene.spin = options.spin;
+        this._scene.comets = options.comets;
+        const scene = this._scene.state(this._locked || options.orbitSpeed === 0);
+        this._updateCamera(dt, scene.lift);
         this._zoom = this._zoom
             ? this._zoom + (options.zoom - this._zoom) * (1 - Math.exp(-dt / ZOOM_SMOOTHING))
             : options.zoom;
@@ -317,10 +329,7 @@ export const SpaceContent = GObject.registerClass({
         const seedA = Math.floor(this._flow) % FLOW_SEEDS;
         const seedB = Math.floor(this._flow + 0.5) % FLOW_SEEDS;
 
-        this._scene.spin = options.spin;
-        this._scene.comets = options.comets;
-        const scene = this._scene.state(this._locked || options.orbitSpeed === 0);
-        const pitch = clamp(this._camera.pitch + scene.lift, -PITCH_LIMIT, PITCH_LIMIT);
+        const {pitch} = this._camera;
         const fov = FOV * scene.fov / this._zoom;
 
         const {pipeline, uniforms} = this._scenePipeline;
@@ -372,11 +381,14 @@ export const SpaceContent = GObject.registerClass({
             const placed = [];
             const spots = PLANET_NAMES.map((name, index) => {
                 const planet = scene.planets.slice(index * 4, index * 4 + 4);
-                return {name, index, radius: planet[3], spot: project(planet.slice(0, 3))};
+                const spot = project(planet.slice(0, 3));
+                const lensing = spot && center && scene.centerMass && spot.depth > center.depth;
+                return {name, index, radius: planet[3],
+                    spot: lensing ? lensed(spot, center, scene.centerMass, camera.fov, aspect) : spot};
             }).filter(({spot}) => spot).sort((a, b) => a.spot.depth - b.spot.depth);
 
             for (const {name, index, radius, spot} of spots) {
-                if (center && spot.depth > center.depth) {
+                if (center && !scene.centerMass && spot.depth > center.depth) {
                     const gap = Math.hypot((spot.x - center.x) * 2 * aspect, (spot.y - center.y) * 2);
                     if (gap < scene.centerRadius * center.size - radius * spot.size)
                         continue;
@@ -385,6 +397,8 @@ export const SpaceContent = GObject.registerClass({
                 let column = Math.floor(spot.x * columns + reachColumns) + 1;
                 if (column + name.length > columns - 1)
                     column = Math.floor(spot.x * columns - reachColumns) - 1 - name.length;
+                if (column + name.length > columns - 1)
+                    continue;
                 const baseRow = Math.floor(spot.y * rows - Math.max(radius * spot.size * rows / 2, 1));
                 const row = [baseRow, baseRow - 1, baseRow + 1].find(candidate =>
                     candidate >= 1 && candidate < rows - 1 && !placed.some(other =>
@@ -403,7 +417,7 @@ export const SpaceContent = GObject.registerClass({
         pipeline.set_uniform_float(uniforms.u_label_text, 4, LABEL_SLOTS * 2, text);
     }
 
-    _updateCamera(dt) {
+    _updateCamera(dt, lift) {
         const options = this._options;
         let [x, y] = [0, 0];
         if (options.followCursor && !this._locked) {
@@ -414,7 +428,7 @@ export const SpaceContent = GObject.registerClass({
         }
 
         const yaw = x * options.sensitivity * MAX_YAW;
-        const pitch = clamp(options.elevation - y * options.sensitivity * MAX_PITCH,
+        const pitch = clamp(options.elevation + lift - y * options.sensitivity * MAX_PITCH,
             -PITCH_LIMIT, PITCH_LIMIT);
         if (!this._camera) {
             this._camera = {yaw, pitch};

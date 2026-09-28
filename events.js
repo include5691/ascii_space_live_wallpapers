@@ -199,6 +199,7 @@ export class Scene {
             distance: 22,
             lift: 0,
             centerRadius: 0,
+            centerMass: 0,
         };
         switch (this._scenario) {
         case 'single':
@@ -273,7 +274,7 @@ export class Scene {
     }
 
     _solarSystem(state) {
-        const kind = SYSTEM_CENTERS[this._objects[0]] ? this._objects[0] : 'star';
+        const [kind] = this._objects;
         const center = SYSTEM_CENTERS[kind];
         state.bodies = [body(kind, [0, 0, 0], center.scale, kind === 'black-hole' ? 1 : 0, center.disk ?? DISK_OUTER)];
         state.light = [0, 0, 0, 1];
@@ -286,6 +287,7 @@ export class Scene {
         state.belt = [...SYSTEM_BELT, 1, 0];
         state.centerRadius = {'star': STAR_RADIUS, 'black-hole': BLACK_HOLE_SHADOW,
             'neutron-star': NEUTRON_RADIUS, 'wormhole': WORMHOLE_THROAT}[kind] * center.scale;
+        state.centerMass = kind === 'star' ? 0 : center.scale;
         state.distance = SYSTEM_DISTANCE;
         state.lift = SYSTEM_LIFT;
         state.fov = SYSTEM_FOV;

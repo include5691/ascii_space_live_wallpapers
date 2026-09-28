@@ -52,6 +52,8 @@ const float RING_OUTER = 2.3;
 const vec3 PLANET_AXIS = vec3(-0.14, 0.92, 0.37);
 const float EARTH_RADIUS = 3.0;
 const float EARTH_TURNS = 4.0;
+const float ORBIT_LINE_GAIN = 0.3;
+const float ORBIT_LINE_WIDTH = 0.4;
 const vec3 EARTH_AXIS = vec3(0.26, 0.94, 0.2);
 const vec3 SATURN_AXIS = vec3(0.12, 0.95, 0.28);
 const float LINGER_RADIUS = 2.4;
@@ -496,7 +498,7 @@ vec3 earthSurface(vec3 n, vec3 p, vec3 view, float index) {
     float ice = max(smoothstep(1.12, 1.22, polar), smoothstep(1.0, 1.1, polar) * coast);
     vec3 albedo = mix(mix(ocean, ground, coast), vec3(0.92, 0.95, 1.0), ice);
 
-    vec3 sky = bodyFrame(n, axis, spin * 0.9 + 2.0 * PI * u_time / TIME_PERIOD);
+    vec3 sky = bodyFrame(n, axis, spin * 0.75 + 2.0 * PI * u_time / TIME_PERIOD);
     float clouds = smoothstep(0.6, 0.8, fbm(sky * vec3(3.0, 6.0, 3.0) + 7.0 + index, 4.0));
     albedo = mix(albedo, vec3(0.95), clouds * 0.7);
 
@@ -587,16 +589,25 @@ vec3 systemPlanetSurface(float k, vec3 n, vec3 p, vec3 view, vec3 center, float 
     return u_light_color * albedo * (0.02 + 1.5 * diffuse);
 }
 
+bool planetAhead(vec3 from, vec3 to) {
+    vec3 segment = to - from;
+    float span = length(segment);
+    for (int k = 0; k < 8; k++)
+        if (sphereEntry(from, segment / span, span, u_planets[k].xyz, u_planets[k].w) >= 0.0)
+            return true;
+    return false;
+}
+
 vec3 systemPlane(vec3 hit, vec3 dir) {
     float r = length(hit.xz);
     float view = 0.25 / max(abs(dir.y), 0.2);
     float lines = 0.0;
     for (int k = 0; k < 8; k++)
-        lines += exp(-pow((r - length(u_planets[k].xz)) / 0.22, 2.0));
-    vec3 glow = vec3(0.4, 0.45, 0.6) * lines * 0.04 * view;
+        lines += exp(-pow((r - length(u_planets[k].xz)) / ORBIT_LINE_WIDTH, 2.0));
+    vec3 glow = vec3(0.4, 0.45, 0.6) * lines * ORBIT_LINE_GAIN * view;
     if (r > u_belt.x && r < u_belt.y) {
-        float angle = atan(hit.z, hit.x) + 2.0 * PI * u_time / TIME_PERIOD * 2.0;
-        vec3 h = hash33(vec3(floor(angle * 60.0), floor(r * 6.0), 9.0));
+        float turns = fract(atan(hit.z, hit.x) / (2.0 * PI) + 2.0 * u_time / TIME_PERIOD);
+        vec3 h = hash33(vec3(floor(turns * 377.0), floor(r * 6.0), 9.0));
         glow += vec3(0.8, 0.75, 0.65) * step(0.8, h.x) * (0.4 + h.y) * 0.5 * u_belt.z;
     }
     return glow;
@@ -756,6 +767,7 @@ vec4 renderPixel(vec2 st) {
     float nearOrigin = 1e6;
     bool captured = false;
     float capturedBy = -1.0;
+    bool centerInFront = false;
     bool through = false;
     vec3 portal = vec3(0.0);
     bool events = u_stream.x > 0.0 || u_jets.w > 0.0 || u_kilonova.y > 0.0;
@@ -805,7 +817,7 @@ vec4 renderPixel(vec2 st) {
             }
             if (sheet)
                 color += transmittance * spacetimeSheet(hit, hitDir);
-            if (u_system > 0.5)
+            if (u_system > 0.5 && !planetAhead(pos, hit))
                 color += transmittance * systemPlane(hit, hitDir);
         }
 
@@ -873,6 +885,7 @@ vec4 renderPixel(vec2 st) {
                 }
                 captured = true;
                 capturedBy = 10.0 + hitPlanet;
+                centerInFront = dot(pos - u_bodies[0].xyz, sdir) > 0.0;
             }
         }
 
@@ -944,7 +957,7 @@ vec4 renderPixel(vec2 st) {
         if (float(i) >= u_count)
             break;
         float scale = u_bodies[i].w;
-        if (captured && abs(capturedBy - float(i)) > 0.5)
+        if (captured && abs(capturedBy - float(i)) > 0.5 && !(capturedBy > 9.5 && centerInFront))
             continue;
         if (u_kinds[i] < 0.5) {
             float offset = impact[i] / scale - CRITICAL_IMPACT;

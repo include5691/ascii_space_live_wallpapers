@@ -23,6 +23,8 @@ function readOptions(settings) {
             ? [settings.get_string('first-object'), settings.get_string('second-object')]
             : [settings.get_string('first-object')],
         orbitSpeed: settings.get_uint('orbit-speed') / 100,
+        events: settings.get_boolean('events'),
+        background: settings.get_string('background'),
         pauseWhenCovered: settings.get_boolean('pause-when-covered'),
         followCursor: settings.get_boolean('follow-cursor'),
         sensitivity: settings.get_uint('cursor-sensitivity') / 100,

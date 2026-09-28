@@ -20,6 +20,8 @@ uniform vec4 u_kilonova;
 uniform float u_flash;
 uniform float u_fade;
 uniform float u_beams;
+uniform float u_background;
+uniform vec4 u_star;
 
 const float PI = 3.14159265;
 const float DISTANCE = 22.0;
@@ -30,6 +32,7 @@ const float NEUTRON_TILT = 0.6;
 const float NEUTRON_TURNS = 96.0;
 const float STAR_RADIUS = 5.0;
 const float STAR_TURNS = 2.0;
+const float WORMHOLE_THROAT = 2.4;
 const float BEAM_LENGTH = 14.0;
 const float BEAM_INTENSITY = 0.35;
 const float GW_REACH = 45.0;
@@ -164,16 +167,16 @@ vec2 cubeFace(vec3 d, out float face) {
     return d.xy / a.z;
 }
 
-vec3 starfield(vec2 uv, float face, vec2 du, vec2 dv) {
+vec3 starfield(vec2 uv, float face, vec2 du, vec2 dv, float density, float seed) {
     vec3 color = vec3(0.0);
     float det = du.x * dv.y - dv.x * du.y;
     if (abs(det) < 1e-14)
         return color;
     for (int layer = 0; layer < 3; layer++) {
         float scale = 70.0 * pow(2.0, float(layer));
-        float threshold = 1.0 - 0.04 / pow(2.0, float(layer));
+        float threshold = 1.0 - 0.04 * density / pow(2.0, float(layer));
         vec2 id = floor(uv * scale);
-        vec3 h = hash33(vec3(id, face * 7.0 + float(layer) * 131.0));
+        vec3 h = hash33(vec3(id, face * 7.0 + float(layer) * 131.0 + seed));
         if (h.z < threshold)
             continue;
         vec2 d = uv - (id + 0.5 + (h.xy - 0.5) * 0.7) / scale;
@@ -203,6 +206,51 @@ float gwReach(vec3 p) {
         * (1.0 - smoothstep(GW_REACH * 0.6, GW_REACH, r)) / (1.0 + 0.12 * r);
 }
 
+vec4 milkyWay(vec3 d) {
+    vec3 pole = normalize(vec3(0.45, 0.9, 0.08));
+    vec3 center = normalize(vec3(-0.35, 0.0, -1.0) - pole * dot(vec3(-0.35, 0.0, -1.0), pole));
+    float latitude = dot(d, pole);
+    float longitude = atan(dot(d, cross(pole, center)), dot(d, center));
+    float bulge = exp(-longitude * longitude * 1.2);
+    float band = exp(-latitude * latitude / (0.008 + 0.02 * bulge));
+    float clouds = fbm(d * 7.0 + 1.0, 4.0);
+    float dust = smoothstep(0.42, 0.7, fbm(d * 11.0 + 7.0, 3.0)) * exp(-latitude * latitude / 0.003);
+    vec3 glow = mix(vec3(0.55, 0.6, 0.8), vec3(1.0, 0.82, 0.55), bulge) * band * (0.35 + clouds) * (1.0 - 0.85 * dust) * 0.055;
+
+    float cloud = smoothstep(0.6, 0.8, fbm(d * 2.4 + 11.0, 4.0)) * (0.25 + band);
+    float hue = noise3(d * 1.7 + 3.0);
+    vec3 tint = hue < 0.5
+        ? mix(vec3(0.95, 0.22, 0.45), vec3(0.3, 0.8, 0.75), smoothstep(0.3, 0.5, hue))
+        : mix(vec3(0.3, 0.8, 0.75), vec3(0.35, 0.45, 1.0), smoothstep(0.5, 0.7, hue));
+    glow += tint * cloud * 0.05;
+    return vec4(glow, band);
+}
+
+vec3 otherSky(vec3 d, vec2 du, vec2 dv) {
+    vec3 galaxy = normalize(vec3(0.3, 0.15, 1.0));
+    float turn = 2.0 * PI * u_time / TIME_PERIOD;
+    d = d * cos(turn) + cross(galaxy, d) * sin(turn) + galaxy * dot(galaxy, d) * (1.0 - cos(turn));
+
+    float haze = fbm(d * 3.0 + 20.0, 4.0);
+    vec3 color = mix(vec3(0.05, 0.02, 0.12), vec3(0.08, 0.35, 0.4), smoothstep(0.35, 0.75, haze)) * haze * 0.6;
+
+    float facing = dot(d, galaxy);
+    if (facing > 0.0) {
+        vec3 side = normalize(cross(galaxy, vec3(0.0, 1.0, 0.0)));
+        vec3 top = cross(side, galaxy);
+        vec2 q = vec2(dot(d, side), dot(d, top) * 1.8) / facing * 0.12;
+        float r = length(q);
+        float arms = pow(max(cos(2.0 * atan(q.y, q.x) - 7.0 * log(r + 0.02)), 0.0), 3.0);
+        color += vec3(1.0, 0.9, 0.75) * exp(-r * r / 0.002) * 1.5;
+        color += mix(vec3(0.5, 0.65, 1.0), vec3(1.0, 0.55, 0.7), smoothstep(0.1, 0.35, r))
+            * arms * exp(-r / 0.2) * (0.4 + fbm(d * 30.0, 3.0)) * 0.45;
+    }
+
+    float face;
+    vec2 sky = cubeFace(d, face);
+    return color + starfield(sky, face, du, dv, 2.5, 57.0);
+}
+
 vec3 accel(vec3 p, vec3 v) {
     vec3 a = vec3(0.0);
     if (u_gw.x > 0.0) {
@@ -217,7 +265,7 @@ vec3 accel(vec3 p, vec3 v) {
     for (int i = 0; i < 2; i++) {
         if (float(i) >= u_count)
             break;
-        if (u_kinds[i] > 1.5)
+        if (abs(u_kinds[i] - 2.0) < 0.5)
             continue;
         vec3 d = p - u_bodies[i].xyz;
         vec3 c = cross(d, v);
@@ -251,12 +299,14 @@ vec3 starSurface(vec3 n, vec3 view, float index) {
     float mu = clamp(dot(n, -view), 0.0, 1.0);
     float edge = 1.0 - mu;
     float limb = 1.0 - 0.5 * edge - 0.25 * edge * edge;
-    float granules = noise3(local * 10.0 + index * 5.0);
+    float granules = noise3(local * mix(4.0, 10.0, clamp(u_star.x, 0.0, 1.0)) + index * 5.0);
     float latitude = abs(local.y);
     float band = smoothstep(0.05, 0.2, latitude) * (1.0 - smoothstep(0.45, 0.6, latitude));
     float spots = smoothstep(0.66, 0.72, fbm(local * 6.0 + index * 9.0 + 2.0, 3.0)) * band;
     vec3 color = mix(vec3(1.0, 0.55, 0.25), vec3(1.0, 0.92, 0.75), mu);
-    return color * (1.4 + 0.35 * granules) * limb * (1.0 - 0.8 * spots);
+    vec3 giant = mix(vec3(0.7, 0.12, 0.04), vec3(1.0, 0.35, 0.12), mu);
+    float heat = clamp(u_star.x, 0.0, 1.0);
+    return mix(giant, color, heat) * (1.4 + 0.5 * granules) * limb * (1.0 - 0.8 * spots * heat) * max(u_star.x, 0.6);
 }
 
 vec3 spacetimeSheet(vec3 hit, vec3 dir) {
@@ -308,12 +358,20 @@ vec3 eventGlow(vec3 p) {
 
     if (u_kilonova.y > 0.0) {
         float r = length(p);
-        float width = 0.3 * u_kilonova.x + 0.3;
+        bool remnant = u_kilonova.w > 0.5;
+        float width = remnant ? 0.1 * u_kilonova.x + 0.25 : 0.3 * u_kilonova.x + 0.3;
         float shell = (r - u_kilonova.x) / width;
         if (abs(shell) < 2.5) {
-            float clumps = 2.5 * pow(fbm(p * 1.2 + 3.0, 3.0), 2.0);
-            vec3 tint = mix(vec3(0.45, 0.6, 1.0), vec3(1.0, 0.35, 0.15), u_kilonova.z);
-            glow += tint * u_kilonova.y * exp(-shell * shell) * clumps * 0.12;
+            if (remnant) {
+                float filaments = 3.0 * smoothstep(0.45, 0.65, fbm(p * 1.6 + 7.0, 4.0));
+                vec3 gas = mix(vec3(1.0, 0.4, 0.25), vec3(0.3, 0.85, 0.75), smoothstep(0.35, 0.65, noise3(p * 0.9)));
+                vec3 tint = mix(vec3(0.85, 0.9, 1.0), gas, u_kilonova.z);
+                glow += tint * u_kilonova.y * exp(-shell * shell) * filaments * 0.1;
+            } else {
+                float clumps = 2.5 * pow(fbm(p * 1.2 + 3.0, 3.0), 2.0);
+                vec3 tint = mix(vec3(0.45, 0.6, 1.0), vec3(1.0, 0.35, 0.15), u_kilonova.z);
+                glow += tint * u_kilonova.y * exp(-shell * shell) * clumps * 0.12;
+            }
         }
     }
 
@@ -363,6 +421,8 @@ vec4 renderPixel(vec2 st) {
     float transmittance = 1.0;
     float nearOrigin = 1e6;
     bool captured = false;
+    bool through = false;
+    vec3 portal = vec3(0.0);
     bool events = u_stream.x > 0.0 || u_jets.w > 0.0 || u_kilonova.y > 0.0;
     bool sheet = u_gw.x > 0.0 || u_burst.z > 0.0;
 
@@ -426,8 +486,12 @@ vec4 renderPixel(vec2 st) {
             } else if (abs(u_kinds[i] - 1.0) < 0.5 && r < NEUTRON_RADIUS * u_bodies[i].w) {
                 color += transmittance * neutronSurface(d / r, normalize(vel), float(i));
                 captured = true;
-            } else if (u_kinds[i] > 1.5 && r < STAR_RADIUS * u_bodies[i].w) {
+            } else if (abs(u_kinds[i] - 2.0) < 0.5 && r < STAR_RADIUS * u_bodies[i].w) {
                 color += transmittance * starSurface(d / r, normalize(vel), float(i));
+                captured = true;
+            } else if (u_kinds[i] > 2.5 && r < WORMHOLE_THROAT * u_bodies[i].w) {
+                portal = reflect(normalize(vel), d / r);
+                through = true;
                 captured = true;
             }
         }
@@ -443,8 +507,12 @@ vec4 renderPixel(vec2 st) {
     vec2 sky = cubeFace(escape, face);
     vec2 du = dFdx(sky);
     vec2 dv = dFdy(sky);
-    if (!captured)
-        color += transmittance * (nebula(escape) + starfield(sky, face, du, dv));
+    if (through) {
+        color += transmittance * otherSky(portal, du, dv);
+    } else if (!captured) {
+        vec4 galaxy = u_background > 0.5 ? milkyWay(escape) : vec4(nebula(escape), 0.0);
+        color += transmittance * (galaxy.rgb + starfield(sky, face, du, dv, 1.0 + 4.0 * galaxy.a, 0.0));
+    }
 
     for (int i = 0; i < 2; i++) {
         if (float(i) >= u_count)
@@ -454,10 +522,13 @@ vec4 renderPixel(vec2 st) {
             float offset = impact[i] / scale - CRITICAL_IMPACT;
             float ring = offset > 0.0 ? exp(-offset * 40.0) + exp(-offset * 8.0) * 0.08 : exp(offset * 120.0);
             color += nearTransmittance[i] * vec3(1.0, 0.84, 0.66) * ring * 1.4;
-        } else if (u_kinds[i] < 1.5 && closest[i] > NEUTRON_RADIUS * scale) {
+        } else if (abs(u_kinds[i] - 1.0) < 0.5 && closest[i] > NEUTRON_RADIUS * scale) {
             float halo = exp(-(closest[i] / (NEUTRON_RADIUS * scale) - 1.0) * 6.0);
             color += nearTransmittance[i] * vec3(0.55, 0.72, 1.0) * halo * 0.3;
-        } else if (u_kinds[i] > 1.5 && closest[i] > STAR_RADIUS * scale) {
+        } else if (u_kinds[i] > 2.5 && closest[i] > WORMHOLE_THROAT * scale) {
+            float rim = exp(-(closest[i] / (WORMHOLE_THROAT * scale) - 1.0) * 12.0);
+            color += nearTransmittance[i] * vec3(0.6, 0.75, 1.0) * rim * 0.8;
+        } else if (abs(u_kinds[i] - 2.0) < 0.5 && closest[i] > STAR_RADIUS * scale) {
             float corona = exp(-(closest[i] / (STAR_RADIUS * scale) - 1.0) * 7.0);
             color += nearTransmittance[i] * vec3(1.0, 0.75, 0.45) * corona * 0.5;
         }

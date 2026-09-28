@@ -14,6 +14,7 @@
         <choice value="black-hole"/>
         <choice value="neutron-star"/>
         <choice value="star"/>
+        <choice value="wormhole"/>
       </choices>
       <default>'black-hole'</default>
       <summary>The object in single mode, and the first object of a pair</summary>
@@ -23,9 +24,22 @@
         <choice value="black-hole"/>
         <choice value="neutron-star"/>
         <choice value="star"/>
+        <choice value="wormhole"/>
       </choices>
       <default>'black-hole'</default>
       <summary>The second object of a pair</summary>
+    </key>
+    <key name="events" type="b">
+      <default>true</default>
+      <summary>Play cosmic events: mergers, devoured stars and supernovae</summary>
+    </key>
+    <key name="background" type="s">
+      <choices>
+        <choice value="stars"/>
+        <choice value="milky-way"/>
+      </choices>
+      <default>'milky-way'</default>
+      <summary>Sky behind the objects</summary>
     </key>
     <key name="orbit-speed" type="u">
       <range min="0" max="400"/>

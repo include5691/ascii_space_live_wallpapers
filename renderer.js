@@ -24,7 +24,7 @@ const SAMPLES_PER_CELL = 2;
 const SCENE_UNIFORMS = [
     'u_resolution', 'u_camera', 'u_fov', 'u_flow', 'u_time', 'u_exposure', 'u_doppler',
     'u_bodies', 'u_disks', 'u_kinds', 'u_count', 'u_gw', 'u_burst', 'u_stream', 'u_stream_center',
-    'u_tidal', 'u_jets', 'u_kilonova', 'u_flash', 'u_fade', 'u_beams',
+    'u_tidal', 'u_jets', 'u_kilonova', 'u_flash', 'u_fade', 'u_beams', 'u_background', 'u_star',
 ];
 const ASCII_UNIFORMS = ['scene', 'u_output', 'u_cells', 'u_origin', 'u_font'];
 
@@ -113,7 +113,7 @@ export const BlackHoleContent = GObject.registerClass({
         this._time = 0;
         this._camera = null;
         this._zoom = 0;
-        this._scene = new Scene(options.objects);
+        this._scene = new Scene(options.objects, options.events);
     }
 
     setMonitor(monitor, scale) {
@@ -132,8 +132,8 @@ export const BlackHoleContent = GObject.registerClass({
     setOptions(options) {
         const resized = options.charSize !== this._options.charSize;
         this._options = options;
-        if (!this._scene.matches(options.objects))
-            this._scene = new Scene(options.objects);
+        if (!this._scene.matches(options.objects, options.events))
+            this._scene = new Scene(options.objects, options.events);
         if (resized)
             this._releaseTexture();
         this.advance();
@@ -280,12 +280,13 @@ export const BlackHoleContent = GObject.registerClass({
         for (const [name, value] of [
             ['u_gw', scene.gw], ['u_burst', scene.burst], ['u_stream', scene.stream],
             ['u_stream_center', scene.streamCenter], ['u_tidal', scene.tidal], ['u_jets', scene.jets],
-            ['u_kilonova', scene.kilonova],
+            ['u_kilonova', scene.kilonova], ['u_star', scene.star],
         ])
             pipeline.set_uniform_float(uniforms[name], 4, 1, value);
         pipeline.set_uniform_1f(uniforms.u_flash, scene.flash);
         pipeline.set_uniform_1f(uniforms.u_fade, scene.fade);
         pipeline.set_uniform_1f(uniforms.u_beams, scene.beams);
+        pipeline.set_uniform_1f(uniforms.u_background, options.background === 'milky-way' ? 1 : 0);
 
         drawFullscreen(this._sceneFramebuffer, pipeline);
         drawFullscreen(this._framebuffer, this._asciiPipeline.pipeline);

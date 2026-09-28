@@ -13,11 +13,16 @@ const FEED_TIME = 70;
 const PLUNGE_TIME = 10;
 const AFTERMATH_TIME = 35;
 const FADE_TIME = 2.5;
+const STABLE_TIME = 35;
+const SWELL_TIME = 22;
+const COLLAPSE_TIME = 1.5;
+const REMNANT_TIME = 50;
+const EXPLOSION_TIME = STABLE_TIME + SWELL_TIME + COLLAPSE_TIME;
 const INSPIRAL_CHIRP = INSPIRAL_TIME / (1 - (MIN_SEPARATION / SEPARATION) ** 4);
 
-export const KINDS = {'black-hole': 0, 'neutron-star': 1, 'star': 2};
+export const KINDS = {'black-hole': 0, 'neutron-star': 1, 'star': 2, 'wormhole': 3};
 
-const MASS = {'black-hole': 1, 'neutron-star': 1, 'star': 0.5};
+const MASS = {'black-hole': 1, 'neutron-star': 1, 'star': 0.5, 'wormhole': 1};
 
 const SCENARIOS = {
     'black-hole+black-hole': 'merger',
@@ -32,6 +37,7 @@ const DURATIONS = {
     kilonova: INSPIRAL_TIME + AFTERMATH_TIME,
     disruption: INSPIRAL_TIME + AFTERMATH_TIME,
     devour: FEED_TIME + PLUNGE_TIME + AFTERMATH_TIME,
+    supernova: EXPLOSION_TIME + REMNANT_TIME,
 };
 
 const smooth = (edge0, edge1, x) => {
@@ -62,18 +68,20 @@ function radiusOf(kind, scale) {
 }
 
 export class Scene {
-    constructor(objects) {
+    constructor(objects, events) {
         this._objects = objects;
-        this._scenario = objects.length === 1
-            ? 'single'
-            : SCENARIOS[[...objects].sort().join('+')] ?? 'orbit';
+        this._events = events;
+        if (objects.length === 1)
+            this._scenario = events && objects[0] === 'star' ? 'supernova' : 'single';
+        else
+            this._scenario = events ? SCENARIOS[[...objects].sort().join('+')] ?? 'orbit' : 'orbit';
         this._time = 0;
         this._angle = 0;
         this._looped = false;
     }
 
-    matches(objects) {
-        return objects.join('+') === this._objects.join('+');
+    matches(objects, events) {
+        return objects.join('+') === this._objects.join('+') && events === this._events;
     }
 
     advance(dt) {
@@ -100,6 +108,7 @@ export class Scene {
             flash: 0,
             fade: 1,
             beams: 1,
+            star: [1, 0, 0, 0],
         };
         switch (this._scenario) {
         case 'single':
@@ -107,6 +116,9 @@ export class Scene {
             break;
         case 'devour':
             this._devour(state);
+            break;
+        case 'supernova':
+            this._supernova(state);
             break;
         case 'orbit':
             state.bodies = this._pair(SEPARATION, [0, 0]);
@@ -157,6 +169,30 @@ export class Scene {
     _single(state) {
         const [kind] = this._objects;
         state.bodies = [body(kind, [0, 0, 0], kind === 'star' ? SINGLE_STAR_SCALE : 1)];
+    }
+
+    _supernova(state) {
+        const t = this._time;
+        const swell = smooth(STABLE_TIME, STABLE_TIME + SWELL_TIME, t);
+        if (t < EXPLOSION_TIME - COLLAPSE_TIME) {
+            const pulse = 1 + 0.04 * swell * Math.sin(2 * Math.PI * (t - STABLE_TIME) / 2.5);
+            state.bodies = [body('star', [0, 0, 0], SINGLE_STAR_SCALE * (1 + 0.7 * swell) * pulse)];
+            state.star = [1 - swell, 0, 0, 0];
+            return;
+        }
+
+        if (t < EXPLOSION_TIME) {
+            const collapse = smooth(EXPLOSION_TIME - COLLAPSE_TIME, EXPLOSION_TIME, t);
+            state.bodies = [body('star', [0, 0, 0], SINGLE_STAR_SCALE * mix(1.7, 0.12, collapse))];
+            state.star = [collapse * 1.5, 0, 0, 0];
+            return;
+        }
+
+        const since = t - EXPLOSION_TIME;
+        state.bodies = [body('neutron-star', [0, 0, 0], 0.7)];
+        state.beams = 1 + 2 * decay(since, 20);
+        state.flash = 3 * decay(since, 1.2);
+        state.kilonova = [1 + 6 * (1 - decay(since, 9)), smooth(0, 0.5, since) * (0.2 + 0.8 * decay(since, 20)), smooth(0, 20, since), 1];
     }
 
     _feed(state, bodies, victim, eater, strength, tightness, width) {

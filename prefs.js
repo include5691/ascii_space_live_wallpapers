@@ -13,6 +13,12 @@ const OBJECTS = [
     ['black-hole', 'Black hole'],
     ['neutron-star', 'Neutron star'],
     ['star', 'Star'],
+    ['wormhole', 'Wormhole'],
+];
+
+const BACKGROUNDS = [
+    ['milky-way', 'Milky Way'],
+    ['stars', 'Stars'],
 ];
 
 function connectSetting(settings, key, widget, callback) {
@@ -71,6 +77,8 @@ export default class BlackHoleWallpaperPreferences extends ExtensionPreferences 
         objects.add(comboRow(settings, 'first-object', 'First object', OBJECTS));
         objects.add(secondObject);
         objects.add(orbitSpeed);
+        objects.add(switchRow(settings, 'events', 'Cosmic events',
+            'Mergers, devoured stars and supernovae'));
 
         const syncPairRows = () => {
             const pair = settings.get_string('mode') === 'pair';
@@ -98,11 +106,12 @@ export default class BlackHoleWallpaperPreferences extends ExtensionPreferences 
         syncCursorRows();
         connectSetting(settings, 'follow-cursor', sensitivity, syncCursorRows);
 
-        const sceneKeys = ['char-size', 'rotation-speed', 'elevation', 'tilt', 'zoom', 'brightness', 'doppler'];
+        const sceneKeys = ['background', 'char-size', 'rotation-speed', 'elevation', 'tilt', 'zoom', 'brightness', 'doppler'];
         const scene = new Adw.PreferencesGroup({
             title: 'Scene',
             header_suffix: resetButton(settings, sceneKeys),
         });
+        scene.add(comboRow(settings, 'background', 'Background', BACKGROUNDS));
         scene.add(spinRow(settings, 'char-size', 'Character size', 'Screen pixels per font dot'));
         scene.add(spinRow(settings, 'rotation-speed', 'Rotation speed', 'Percent'));
         scene.add(spinRow(settings, 'elevation', 'Camera height', 'Degrees above the disk'));

@@ -153,7 +153,6 @@ export default class SpaceWallpaperPreferences extends ExtensionPreferences {
         const labels = switchRow(settings, 'labels', 'Planet names');
         const realTime = switchRow(settings, 'real-time', 'Real time',
             "Earth's day and night, the Moon's phase and the planets follow the real clock");
-        const comets = switchRow(settings, 'comets', 'Comets and meteors');
         objects.add(singleObject);
         objects.add(firstObject);
         objects.add(center);
@@ -165,7 +164,6 @@ export default class SpaceWallpaperPreferences extends ExtensionPreferences {
         objects.add(spin);
         objects.add(labels);
         objects.add(realTime);
-        objects.add(comets);
         objects.add(events);
 
         const performance = new Adw.PreferencesGroup({title: 'Performance'});
@@ -216,7 +214,6 @@ export default class SpaceWallpaperPreferences extends ExtensionPreferences {
             secondObject.set_visible(mode === 'pair');
             labels.set_sensitive(system);
             realTime.set_sensitive(system || selected.includes('earth'));
-            comets.set_sensitive(mode !== 'galaxy');
             orbitSpeed.set_sensitive(pair || system || mode === 'galaxy' || (eventsOn && hasEvents(selected)));
             spin.set_sensitive(hasBlackHole(selected, eventsOn));
             events.set_sensitive(hasEvents(selected, system));

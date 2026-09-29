@@ -27,9 +27,6 @@ uniform float u_beams;
 uniform vec4 u_star;
 uniform float u_spins[2];
 uniform vec4 u_light;
-uniform vec4 u_comet;
-uniform vec4 u_comet_ion;
-uniform vec4 u_comet_dust;
 uniform sampler2D earth_map;
 uniform vec3 u_light_color;
 uniform vec4 u_planets[8];
@@ -38,6 +35,7 @@ uniform vec2 u_orbits[8];
 uniform float u_distance;
 uniform vec4 u_live;
 uniform float u_moon_tilt;
+uniform float u_moon_keep;
 uniform vec4 u_moons[6];
 uniform float u_moon_hosts[6];
 uniform vec4 u_magnetar;
@@ -77,16 +75,12 @@ const float CRAB_STEP = 0.4;
 const vec3 CRAB_SQUASH = vec3(1.0, 0.8, 0.72);
 const vec3 CRAB_AXIS = vec3(0.0, 1.0, 0.0);
 const float GALAXY_RANGE = 4.0;
-const float COMET_STEP = 0.35;
 const float WIND_REACH = 16.0;
 const float WIND_DISTANCE = 8.0;
 const float WIND_GAIN = 0.3;
 const float WIND_STEP = 0.35;
 const float WIND_HEIGHT = 3.0;
 const float WIND_RANGE = 46.0;
-const float COMET_CORE = 0.03;
-const float METEOR_WIDTH = 0.00002;
-const float MIN_COMET_STEP = 0.02;
 const float LINGER_RADIUS = 2.4;
 const float BEAM_LENGTH = 14.0;
 const float BEAM_INTENSITY = 0.35;
@@ -726,7 +720,7 @@ vec3 earthMoonCenter(vec3 center, float scale) {
 }
 
 float moonKept(float index) {
-    return abs(index - u_tidal.w) < 0.5 ? 1.0 - smoothstep(1.4, 2.0, u_tidal.x) : 1.0;
+    return abs(index - u_tidal.w) < 0.5 ? u_moon_keep : 1.0;
 }
 
 vec4 earthMoonHit(vec3 from, vec3 to, vec3 center, float scale, float kept) {
@@ -929,61 +923,6 @@ vec4 moonHit(vec3 from, vec3 to, vec3 center, float scale, float index) {
     return hit;
 }
 
-float segmentDistance(vec3 q, vec3 axis, float reach) {
-    return length(q - axis * clamp(dot(q, axis), 0.0, reach));
-}
-
-float cometDistance(vec3 p) {
-    vec3 q = p - u_comet.xyz;
-    return min(segmentDistance(q, u_comet_ion.xyz, u_comet_ion.w), segmentDistance(q, u_comet_dust.xyz, u_comet_dust.w));
-}
-
-vec3 cometGlow(vec3 p, float footprint) {
-    vec3 q = p - u_comet.xyz;
-    float ion = dot(q, u_comet_ion.xyz);
-    float dust = dot(q, u_comet_dust.xyz);
-    float dist2 = dot(q, q);
-    float core = max(COMET_CORE, square(footprint));
-    if (dist2 > max(1.0, 9.0 * core) && ion < 0.0 && dust < 0.0)
-        return vec3(0.0);
-    if (dist2 > square(max(u_comet_ion.w, u_comet_dust.w) + 1.0))
-        return vec3(0.0);
-
-    vec3 glow = vec3(0.75, 0.88, 1.0) * (exp(-dist2 / core) * 1.5 * sqrt(COMET_CORE / core) + exp(-dist2 / 0.25) * 0.08);
-    if (ion > 0.0) {
-        float width = max(0.1 + 0.03 * ion, footprint);
-        float perp = length(q - ion * u_comet_ion.xyz) / width;
-        if (perp < 3.0)
-            glow += vec3(0.45, 0.65, 1.0) * exp(-perp * perp) * exp(-ion / u_comet_ion.w * 2.5) * 0.7
-                * (1.0 - smoothstep(0.6 * u_comet_ion.w, u_comet_ion.w + 1.0, ion));
-    }
-    if (dust > 0.0) {
-        float width = max(0.12 + 0.08 * dust, footprint);
-        float perp = length(q - dust * u_comet_dust.xyz) / width;
-        if (perp < 3.0)
-            glow += vec3(1.0, 0.88, 0.65) * exp(-perp * perp) * exp(-dust / u_comet_dust.w * 2.0) * 0.35
-                * (1.0 - smoothstep(0.6 * u_comet_dust.w, u_comet_dust.w + 1.0, dust));
-    }
-    return glow * u_comet.w;
-}
-
-vec3 meteor(vec3 d, float pitch) {
-    float cycle = floor(u_time / 8.0);
-    float age = u_time - cycle * 8.0;
-    vec3 h = hash33(vec3(cycle, 17.0, 3.0));
-    if (h.z < 0.4 || age > 0.8)
-        return vec3(0.0);
-    vec3 start = normalize(vec3(h.x * 1.4 - 0.7, h.y * 0.9 - 0.3, -1.0));
-    vec3 motion = normalize(cross(start, normalize(vec3(h.y - 0.5, 1.0, h.x - 0.5))));
-    vec3 head = normalize(start + motion * age * 0.6);
-    vec3 tail = normalize(head - motion * 0.12);
-    vec3 axis = head - tail;
-    float t = clamp(dot(d - tail, axis) / dot(axis, axis), 0.0, 1.0);
-    float dist = length(d - (tail + axis * t));
-    float width2 = max(METEOR_WIDTH, square(pitch));
-    return vec3(1.0, 0.95, 0.85) * exp(-dist * dist / width2) * sqrt(METEOR_WIDTH / width2) * t * (1.0 - age / 0.8) * 1.2;
-}
-
 vec3 pulsarBeam(vec3 d, vec3 axis) {
     float along = dot(d, axis);
     float span = abs(along);
@@ -1008,7 +947,6 @@ vec4 renderPixel(vec2 st) {
     vec3 rolledRight = cos(roll) * right + sin(roll) * up;
     vec3 rolledUp = cos(roll) * up - sin(roll) * right;
     vec3 dir = normalize(forward + (uv.x * rolledRight + uv.y * rolledUp) * u_fov);
-    float rayPitch = length(fwidth(dir));
 
     vec3 axes[2];
     float closest[2];
@@ -1037,7 +975,6 @@ vec4 renderPixel(vec2 st) {
     bool through = false;
     vec3 portal = vec3(0.0);
     bool events = u_stream.x > 0.0 || u_jets.w > 0.0 || u_kilonova.y > 0.0;
-    bool comet = u_comet.w > 0.0;
     bool sheet = u_gw.x > 0.0 || u_burst.z > 0.0;
 
     for (int n = 0; n < MAX_STEPS; n++) {
@@ -1048,10 +985,6 @@ vec4 renderPixel(vec2 st) {
             nearest = min(nearest, length(pos - u_bodies[i].xyz));
         }
         float dt = max(STEP_SCALE * nearest * max(1.0, length(pos) / 25.0), 0.02);
-#ifdef HAS_COMET
-        if (comet)
-            dt = min(dt, max(MIN_COMET_STEP, COMET_STEP * cometDistance(pos)));
-#endif
 #ifdef HAS_CRAB
         if (dot(pos, pos) < square(CRAB_RADIUS * 1.2))
             dt = min(dt, CRAB_STEP);
@@ -1096,10 +1029,6 @@ vec4 renderPixel(vec2 st) {
 #ifdef HAS_EVENTS
         if (events)
             color += transmittance * eventGlow(pos) * dt;
-#endif
-#ifdef HAS_COMET
-        if (comet)
-            color += transmittance * cometGlow(pos, rayPitch * length(pos - origin)) * dt;
 #endif
 
         vec3 halfVel = vel + a * (0.5 * dt);
@@ -1319,9 +1248,6 @@ vec4 renderPixel(vec2 st) {
         vec4 galaxy = vec4(nebula(escape), 0.0);
 #endif
         color += transmittance * (galaxy.rgb + starfield(sky, face, du, dv, 1.0 + 4.0 * galaxy.a, 0.0));
-#ifdef HAS_METEORS
-        color += transmittance * meteor(escape, rayPitch);
-#endif
     }
 
     for (int i = 0; i < SLOTS; i++) {

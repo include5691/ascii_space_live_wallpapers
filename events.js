@@ -1,13 +1,10 @@
+import {DebrisField} from './debris.js';
 import {GalaxyCollision, SpiralGalaxy, StarCluster} from './galaxy.js';
 
 const SEPARATION = 12;
 const PAIR_SCALE = 0.6;
 const SINGLE_STAR_SCALE = 0.65;
 const SINGLE_PLANET_SCALE = 0.8;
-const COMET_PERIOD = 70;
-const COMET_DURATION = 40;
-const COMET_REACH = 26;
-const COMET_CLEARANCE = 5.5;
 const DEFAULT_LIGHT = [-0.5, 0.35, 0.8];
 const DISK_OUTER = 17;
 const BLACK_HOLE_DISK_INNER = 2.1;
@@ -37,7 +34,6 @@ const MOON_TILT_SCALE = 17.7;
 const MAX_MOON_TILT = 1.3;
 const FLARE_FADE = 6;
 const RING_FADE = [4, 7.5];
-const VIEW_DISTANCE = 22;
 const GALAXY_VIEWS = {
     spiral: {distance: 30, lift: 0.85},
     collision: {distance: 64, lift: 0.3},
@@ -62,9 +58,9 @@ const SCENARIO_FEATURES = {
     merger: ['BLACK_HOLE', 'DISK', 'SHEET'],
     kilonova: ['BLACK_HOLE', 'DISK', 'SHEET', 'EVENTS'],
     disruption: ['BLACK_HOLE', 'DISK', 'SHEET', 'EVENTS'],
-    devour: ['DISK', 'EVENTS'],
+    devour: ['DISK', 'EVENTS', 'GALAXY'],
     'system': ['SYSTEM'],
-    'system-devour': ['SYSTEM', 'EVENTS'],
+    'system-devour': ['SYSTEM', 'GALAXY'],
     'system-escape': ['SYSTEM'],
     'system-wind': ['SYSTEM', 'WIND'],
     spiral: ['GALAXY'],
@@ -109,14 +105,36 @@ const SYSTEM_FATES = {'black-hole': 'system-devour', 'wormhole': 'system-escape'
 const DEVOUR_START = 4;
 const DEVOUR_GAP = 12;
 const DEVOUR_FALL = 7;
-const DEVOUR_TEAR = 3;
+const BREAK_TIME = 0.6;
+const DISRUPT_TIME = 76;
+const PAIR_GRAVITY = (2 * Math.PI / 60) ** 2 * 12 ** 3;
+const PAIR_DEBRIS = 3000;
+const PLANET_DEBRIS = 700;
+const PLANET_STRETCH = 1.8;
+const MOON_DEBRIS = 200;
+const PLANET_MOON_DEBRIS = 80;
+const MOON_COLORS = [[0.62, 0.6, 0.58], [0.45, 0.44, 0.42]];
+const MOON_GLOW = 0.25;
+const EARTH_MOON_REACH = {pair: 2.2, single: 3.4};
+const EARTH_MOON_TURNS = 3;
+const SHADER_PERIOD = 256;
+const DEBRIS_FEED_GAIN = 0.01;
+const MAX_DEBRIS_FEED = 2.5;
+const VICTIM_DEBRIS = {
+    'star': {palette: [[1, 0.85, 0.6], [1, 0.7, 0.4], [1, 0.95, 0.8]], glow: 0.4},
+    'earth': {palette: [[0.25, 0.4, 0.9], [0.45, 0.42, 0.28], [0.3, 0.5, 0.25], [0.9, 0.92, 0.95]], glow: 0.2},
+};
+const PLANET_DEBRIS_COLORS = [
+    [[0.55, 0.52, 0.5]], [[0.95, 0.85, 0.6]], [[0.25, 0.4, 0.9], [0.45, 0.42, 0.28], [0.9, 0.92, 0.95]], [[0.8, 0.35, 0.15]],
+    [[0.93, 0.85, 0.72], [0.7, 0.5, 0.35]], [[0.95, 0.88, 0.68]], [[0.55, 0.85, 0.9]], [[0.25, 0.4, 0.95]],
+];
 const DEVOUR_AFTERMATH = 15;
 const TIDAL_REACH = 3.8;
 const MAX_SPIN_UP = 40;
 const ESCAPE_TIME = 60;
 const ESCAPE_GRAVITY = 0.25;
 const ESCAPE_STEP = 0.05;
-const SYSTEM_DEVOUR_TIME = DEVOUR_START + DEVOUR_GAP * 7 + DEVOUR_FALL + 7 + DEVOUR_TEAR + DEVOUR_AFTERMATH;
+const SYSTEM_DEVOUR_TIME = DEVOUR_START + DEVOUR_GAP * 7 + DEVOUR_FALL + 7 + BREAK_TIME + DEVOUR_AFTERMATH;
 const SYSTEM_CENTERS = {
     'star': {scale: 0.5, light: [1, 0.97, 0.9]},
     'black-hole': {scale: 0.6, light: [0.8, 0.58, 0.36], disk: 5.5},
@@ -150,16 +168,6 @@ const smooth = (edge0, edge1, x) => {
 };
 
 const decay = (x, time) => (x < 0 ? 0 : Math.exp(-x / time));
-
-const random = (seed, n) => {
-    const x = Math.sin(seed * 12.9898 + n * 78.233) * 43758.5453;
-    return x - Math.floor(x);
-};
-
-const normalize = v => {
-    const length = Math.hypot(...v);
-    return v.map(x => x / length);
-};
 
 const moonTilt = latitude => Math.max(-MAX_MOON_TILT, Math.min(MAX_MOON_TILT, latitude * MOON_TILT_SCALE));
 
@@ -203,12 +211,12 @@ function devourStage(index, orbit, t) {
     const start = DEVOUR_START + DEVOUR_GAP * index;
     const tear = start + DEVOUR_FALL + index;
     const fall = Math.min(Math.max((t - start) / (tear - start), 0), 1) ** 2;
-    const torn = smooth(tear, tear + DEVOUR_TEAR, t);
     return {
         start,
         tear,
-        reach: t < tear ? mix(orbit, TIDAL_REACH, fall) : mix(TIDAL_REACH, TIDAL_REACH * 0.4, torn),
-        size: 1 - torn,
+        reach: t < tear ? mix(orbit, TIDAL_REACH, fall)
+            : Math.max(TIDAL_REACH - 2 * (orbit - TIDAL_REACH) / (tear - start) * (t - tear), 0),
+        size: 1 - smooth(tear, tear + BREAK_TIME, t),
     };
 }
 
@@ -228,6 +236,7 @@ export class Scene {
         this._planetAngles = SYSTEM_PLANETS.map(planet => planet.start);
         this._moonTime = 0;
         this._sky = null;
+        this._shaderTime = 0;
         if (mode === 'system')
             this._scenario = events ? SYSTEM_FATES[objects[0]] ?? 'system' : 'system';
         else if (mode === 'galaxy')
@@ -242,7 +251,6 @@ export class Scene {
         this._angle = 0;
         this._looped = false;
         this._cycle = 0;
-        this._clock = 0;
     }
 
     get features() {
@@ -254,6 +262,10 @@ export class Scene {
         return this._objects.length;
     }
 
+    set shaderTime(value) {
+        this._shaderTime = value;
+    }
+
     set sky(value) {
         this._sky = value;
     }
@@ -263,18 +275,13 @@ export class Scene {
         this._spin = value;
     }
 
-    set comets(value) {
-        this._comets = value;
-    }
-
     matches(objects, events, mode = 'single') {
         return objects.join('+') === this._objects.join('+') && events === this._events && mode === this._mode;
     }
 
-    advance(dt, realDt = dt) {
+    advance(dt) {
         const duration = DURATIONS[this._scenario];
         this._time += dt;
-        this._clock += realDt;
         let step = dt;
         const wrapped = duration && this._time >= duration;
         if (wrapped) {
@@ -290,10 +297,14 @@ export class Scene {
         else if (this._galaxy)
             this._galaxy.update(this._time);
         this._moonTime += dt;
-        if (wrapped)
+        if (wrapped) {
             this._planetAngles = SYSTEM_PLANETS.map(planet => planet.start);
-        if (wrapped)
             this._escape = null;
+            this._debris = null;
+            this._torn = new Set();
+            this._eaterAtTear = null;
+        }
+        this._debris?.advance(step);
         if (this._scenario === 'system-escape' && this._escape)
             this._advanceEscape(step);
         this._planetAngles = this._planetAngles.map((angle, index) => {
@@ -315,6 +326,7 @@ export class Scene {
             stream: [0, 0, 1, 0],
             streamCenter: [0, 0, 0, 0],
             tidal: [1, 1, 0, -1],
+            moonKeep: 1,
             jets: [0, 0, 0, 0],
             kilonova: [0, 0, 0, 0],
             flash: 0,
@@ -323,9 +335,6 @@ export class Scene {
             fov: this._objects.length === 2 ? PAIR_FOV : 1,
             star: [1, 0, 0, 0],
             light: [...DEFAULT_LIGHT, 0],
-            comet: [0, 0, 0, 0],
-            cometIon: [1, 0, 0, 1],
-            cometDust: [1, 0, 0, 1],
             lightColor: [1, 1, 1],
             planets: new Array(32).fill(0),
             system: 0,
@@ -389,7 +398,6 @@ export class Scene {
         const star = state.bodies.find(candidate => candidate.kind === 'star');
         if (star && this._scenario !== 'supernova' && this._mode !== 'system')
             state.light = [...star.position, 1];
-        this._comet(state);
 
         const duration = DURATIONS[this._scenario];
         if (still) {
@@ -401,8 +409,7 @@ export class Scene {
         return state;
     }
 
-    _separation() {
-        const t = this._time;
+    _separation(t = this._time) {
         switch (this._scenario) {
         case 'merger':
         case 'kilonova':
@@ -500,7 +507,9 @@ export class Scene {
             this._escapePlanets(state);
         SYSTEM_MOONS.forEach((moon, index) => {
             const host = state.planets.slice(moon.host * 4, moon.host * 4 + 4);
-            const reach = moon.orbit * host[3];
+            const hostRadius = SYSTEM_PLANETS[moon.host].radius;
+            const torn = this._torn?.has(moon.host);
+            const reach = moon.orbit * (torn ? hostRadius : host[3]);
             const live = this._sky && moon.host === 2;
             const angle = live
                 ? Math.atan2(-host[2], -host[0]) - 2 * Math.PI * this._sky.moonPhase
@@ -508,9 +517,23 @@ export class Scene {
             const lift = live ? Math.sin(moonTilt(this._sky.moonLatitude)) : 0.03 * Math.sin(angle);
             const level = Math.sqrt(1 - lift * lift);
             state.moons.splice(index * 4, 4, host[0] + Math.cos(angle) * reach * level, lift * reach,
-                host[2] + Math.sin(angle) * reach * level, moon.radius * host[3]);
+                host[2] + Math.sin(angle) * reach * level, torn ? 0 : moon.radius * host[3]);
             state.moonHosts[index] = moon.host;
+            const fresh = this._freshlyTorn?.get(moon.host);
+            if (fresh) {
+                this._debris.burst({
+                    ...fresh,
+                    offset: state.moons.slice(index * 4, index * 4 + 3),
+                    radius: moon.radius * hostRadius,
+                    axis: fresh.axis,
+                    stretch: 1,
+                    palette: MOON_COLORS,
+                    glow: MOON_GLOW,
+                    count: PLANET_MOON_DEBRIS,
+                });
+            }
         });
+        this._freshlyTorn?.clear();
         state.centerRadius = {'star': STAR_RADIUS, 'black-hole': BLACK_HOLE_SHADOW,
             'neutron-star': NEUTRON_RADIUS, 'wormhole': WORMHOLE_THROAT}[kind] * center.scale;
         state.centerMass = kind === 'star' ? 0 : center.scale;
@@ -519,26 +542,63 @@ export class Scene {
         state.fov = SYSTEM_FOV;
     }
 
+    _debrisField(eater) {
+        this._debris ??= new DebrisField();
+        this._torn ??= new Set();
+        this._debris.capture = eater.kind === 'black-hole' ? eater.disk[0] * eater.scale : NEUTRON_RADIUS * 1.2 * eater.scale;
+        this._debris.occluder = {
+            center: eater.position,
+            radius: (eater.kind === 'black-hole' ? BLACK_HOLE_SHADOW : NEUTRON_RADIUS) * eater.scale,
+        };
+        return this._debris;
+    }
+
+    _showDebris(state, debris, eater) {
+        debris.place(eater.position);
+        state.particles = debris;
+        const boost = Math.min(DEBRIS_FEED_GAIN * debris.feeding, MAX_DEBRIS_FEED);
+        eater.disk[2] *= 1 + boost;
+        if (eater.kind === 'neutron-star')
+            state.beams += boost;
+    }
+
     _devourPlanets(state) {
         const t = this._time;
         const [hole] = state.bodies;
-        let feeding = 0;
+        const debris = this._debrisField(hole);
         SYSTEM_PLANETS.forEach((planet, index) => {
             const stage = devourStage(index, planet.orbit, t);
             const angle = this._planetAngles[index] + (this._sky ? -this._sky.planetLongitudes[index] - planet.start : 0);
-            state.planets.splice(index * 4, 4, Math.cos(angle) * stage.reach, 0, Math.sin(angle) * stage.reach,
+            const direction = [Math.cos(angle), 0, Math.sin(angle)];
+            state.planets.splice(index * 4, 4, direction[0] * stage.reach, 0, direction[2] * stage.reach,
                 planet.radius * stage.size);
             state.orbits[index * 2 + 1] = 1 - smooth(stage.start, stage.start + 2, t);
-            if (t > stage.tear - 2 && t < stage.tear + DEVOUR_TEAR + 1) {
-                const strength = smooth(stage.tear - 2, stage.tear, t) * (1 - smooth(stage.tear + DEVOUR_TEAR, stage.tear + DEVOUR_TEAR + 1, t));
-                state.stream = [1.5 * strength, 0.3, 0.6 + planet.radius, stage.reach];
-                state.streamCenter = [0, 0, hole.disk[0] * hole.scale, angle];
+            if (t >= stage.tear && !this._torn.has(index)) {
+                this._torn.add(index);
+                const spin = Math.min((planet.orbit / stage.reach) ** 1.5, MAX_SPIN_UP) *
+                    2 * Math.PI / (SYSTEM_YEAR * Math.sqrt(planet.years));
+                const inward = 2 * (planet.orbit - TIDAL_REACH) / (stage.tear - stage.start);
+                const speed = stage.reach * spin;
+                const motion = {
+                    velocity: [direction[2] * speed - direction[0] * inward, 0, -direction[0] * speed - direction[2] * inward],
+                    axis: direction,
+                    gravity: speed * speed * stage.reach,
+                };
+                debris.burst({
+                    ...motion,
+                    offset: direction.map(v => v * stage.reach),
+                    radius: planet.radius,
+                    stretch: PLANET_STRETCH,
+                    palette: PLANET_DEBRIS_COLORS[index],
+                    glow: 0.3,
+                    count: PLANET_DEBRIS,
+                });
+                this._freshlyTorn ??= new Map();
+                this._freshlyTorn.set(index, motion);
             }
-            const since = t - stage.tear - DEVOUR_TEAR;
-            state.flash = Math.max(state.flash, 0.8 * decay(since, 0.6));
-            feeding += smooth(stage.tear - 2, stage.tear + DEVOUR_TEAR, t) * (1 - smooth(0, 1, since)) + decay(since, 6) * smooth(0, 1, since);
+            state.flash = Math.max(state.flash, 0.4 * decay(t - stage.tear, 0.6));
         });
-        hole.disk[2] *= 1 + 1.2 * feeding;
+        this._showDebris(state, debris, hole);
     }
 
     _advanceEscape(dt) {
@@ -574,30 +634,6 @@ export class Scene {
         state.belt[2] = 1 - smooth(0, 20, this._time);
     }
 
-    _comet(state) {
-        if (!this._comets || this._mode === 'galaxy')
-            return;
-        const cycle = Math.floor(this._clock / COMET_PERIOD);
-        const progress = (this._clock - cycle * COMET_PERIOD) / COMET_DURATION;
-        if (progress > 1)
-            return;
-
-        const side = random(cycle, 1) < 0.5 ? -1 : 1;
-        const scale = Math.max(1, state.distance / VIEW_DISTANCE);
-        const lift = (random(cycle, 2) < 0.5 ? -1 : 1) * (COMET_CLEARANCE + 3 * random(cycle, 3)) * scale;
-        const depth = (-2 - 8 * random(cycle, 4)) * scale;
-        const start = [side * COMET_REACH * scale, lift, depth];
-        const end = [-side * COMET_REACH * scale, lift * (0.7 + 0.3 * random(cycle, 5)), depth + (random(cycle, 6) - 0.5) * 6 * scale];
-        const position = start.map((v, i) => mix(v, end[i], progress));
-        const heading = normalize(end.map((v, i) => v - start[i]));
-        const ion = state.light[3] > 0.5
-            ? normalize(position.map((v, i) => v - state.light[i]))
-            : normalize(state.light.slice(0, 3).map(v => -v));
-        const dust = normalize(ion.map((v, i) => 0.7 * v - 0.5 * heading[i]));
-        state.comet = [...position, smooth(0, 0.1, progress) * (1 - smooth(0.9, 1, progress))];
-        state.cometIon = [...ion, 12];
-        state.cometDust = [...dust, 8];
-    }
 
     _planetaryNebula(state) {
         const t = this._time;
@@ -718,37 +754,82 @@ export class Scene {
         const victim = this._objects.findIndex(kind => kind === 'star' || kind === 'earth');
         const eater = 1 - victim;
         const eaterKind = this._objects[eater];
+        const victimKind = this._objects[victim];
         const separation = this._separation();
+        const broken = t - DISRUPT_TIME;
 
         if (t < end) {
             const sizes = [1, 1];
-            sizes[victim] = 1 - 0.15 * smooth(0, FEED_TIME, t) - 0.85 * smooth(FEED_TIME + 4, end, t);
+            sizes[victim] = 1 - 0.15 * smooth(0, FEED_TIME, t);
             const gains = [1, 1];
             gains[eater] = eaterKind === 'black-hole'
                 ? 0.6 + 0.6 * smooth(5, FEED_TIME, t) + smooth(FEED_TIME, end, t)
                 : smooth(5, 25, t) + smooth(FEED_TIME, end, t);
             state.bodies = this._pair(separation, gains, sizes);
-            state.tidal[0] = 1 + 0.35 * smooth(0, FEED_TIME, t) + 3 * smooth(FEED_TIME + 2, end, t);
-            const strength = smooth(2, 10, t) + 2 * smooth(FEED_TIME, end - 2, t);
+            state.tidal[0] = 1 + 0.35 * smooth(0, FEED_TIME, t) + 1.8 * smooth(FEED_TIME + 1, DISRUPT_TIME, t);
+            const gas = victimKind === 'star' ? 1 : 0;
+            const strength = gas * (smooth(2, 10, t) + 2 * smooth(FEED_TIME, DISRUPT_TIME - 1, t)) * (1 - smooth(-1, 0, broken));
             this._feed(state, state.bodies, victim, eater, strength,
                 0.35 - 0.17 * smooth(FEED_TIME, end, t), 1 + 1.5 * smooth(FEED_TIME, end, t));
+            const debris = this._debrisField(state.bodies[eater]);
+            if (broken >= 0 && !this._torn.has(victim))
+                this._tearApart(state, debris, victim, eater, victimKind);
+            if (broken >= 0) {
+                state.bodies[victim].scale *= 1 - smooth(0, BREAK_TIME, broken);
+                state.bodies[eater].position = this._eaterAtTear.map(v => v * decay(broken, 6));
+                state.moonKeep = 0;
+            }
+            state.flash = 1.2 * decay(broken, 0.8);
+            this._showDebris(state, debris, state.bodies[eater]);
             return;
         }
 
+        const position = (this._eaterAtTear ?? [0, 0, 0]).map(v => v * decay(broken, 6));
         const since = t - end;
-        const [last] = this._pair(separation, [1, 1]).filter((_, index) => index === eater);
-        const position = last.position.map(v => v * decay(since, 6));
         const before = eaterKind === 'black-hole' ? 2.2 : 2;
-        const gain = mix(before, 1.2, smooth(0, 20, since)) + 1.5 * smooth(0, 1, since) * decay(since, 8);
+        const gain = mix(before, 1.2, smooth(0, 20, since));
         const outer = mix(Math.min(DISK_OUTER, 0.42 * separation / PAIR_SCALE), DISK_OUTER, smooth(0, 12, since));
-        const inner = (eaterKind === 'black-hole' ? blackHoleInner : NEUTRON_DISK_INNER) * PAIR_SCALE;
-        state.bodies = [body(eaterKind, position, PAIR_SCALE, gain, outer)];
-        state.stream = [3 * decay(since, 3), 0.18, 2.5, Math.max(separation, inner * 1.5)];
-        state.streamCenter = [position[0], position[2], inner, this._victimAngle(victim)];
-        state.flash = 1.8 * decay(since, 0.8);
+        const hole = body(eaterKind, position, PAIR_SCALE, gain, outer);
+        state.bodies = [hole];
+        state.moonKeep = 0;
         if (eaterKind === 'black-hole')
             state.jets = [...position, 2.5 * smooth(0, 1.5, since) * (0.4 + 0.6 * decay(since, 20))];
         else
             state.beams = 1 + 2.5 * smooth(0, 2, since) * decay(since, 15);
+        this._showDebris(state, this._debrisField(hole), hole);
+    }
+
+    _tearApart(state, debris, victim, eater, victimKind) {
+        this._torn.add(victim);
+        const t = this._time;
+        const offset = state.bodies[victim].position.map((v, i) => v - state.bodies[eater].position[i]);
+        const separation = Math.hypot(...offset);
+        const axis = offset.map(v => v / separation);
+        const spin = ANGULAR_SPEED * (SEPARATION / separation) ** 1.5;
+        const closing = (this._separation(t + 0.01) - this._separation(t)) / 0.01;
+        const velocity = [axis[2] * spin * separation + axis[0] * closing, 0, -axis[0] * spin * separation + axis[2] * closing];
+        const {palette, glow} = VICTIM_DEBRIS[victimKind];
+        const radius = radiusOf(victimKind, state.bodies[victim].scale);
+        this._eaterAtTear = [...state.bodies[eater].position];
+        debris.burst({offset, velocity, radius, axis, stretch: state.tidal[0], palette, glow, gravity: PAIR_GRAVITY, count: PAIR_DEBRIS});
+        if (victimKind !== 'earth')
+            return;
+        const angle = this._sky
+            ? Math.atan2(state.light[2], state.light[0]) - 2 * Math.PI * this._sky.moonPhase
+            : -2 * Math.PI * (this._shaderTime / SHADER_PERIOD * EARTH_MOON_TURNS + 0.2);
+        const tilt = this._sky ? state.moonTilt : Math.atan(0.09 * Math.sin(angle));
+        const reach = EARTH_RADIUS * state.bodies[victim].scale * EARTH_MOON_REACH.pair;
+        const moon = [Math.cos(angle) * Math.cos(tilt), Math.sin(tilt), Math.sin(angle) * Math.cos(tilt)];
+        debris.burst({
+            offset: offset.map((v, i) => v + moon[i] * reach),
+            velocity,
+            radius: radius * 0.27,
+            axis,
+            stretch: 1,
+            palette: MOON_COLORS,
+            glow: MOON_GLOW,
+            gravity: PAIR_GRAVITY,
+            count: MOON_DEBRIS,
+        });
     }
 }

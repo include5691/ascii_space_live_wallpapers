@@ -24,7 +24,7 @@ Light rays bend around the black hole, so the far side of the disk shows up abov
   - the Crab Nebula, shown alone: a pulsar inside a blue synchrotron glow with red and yellow filaments, a bright inner ring, polar jets and ripples that run outward.
 - A solar system mode: eight planets with their own looks, faint orbit lines, an asteroid belt and Saturn's rings. The Moon circles Earth, four moons circle Jupiter and Titan circles Saturn. Their shadows cross the planets, and they go dark in the planets' shadows. The center is any object you pick: the Sun, a black hole, a neutron star or a wormhole. The center lights everything; a black hole, neutron star or wormhole also bends the light. Planet names can be shown in the same pixel font.
 - With Cosmic events on, the solar system reacts to its center:
-  - a black hole pulls the planets in one by one, tears each into a glowing stream that pours into its disk, and swallows them all, then the system starts again;
+  - a black hole pulls the planets in one by one and tears each planet and its moons into a cloud of fragments. The fragments swirl around it, heat up, feed its disk or fly away, then the system starts again;
   - a wormhole is lighter than the Sun, so the planets escape on real gravity paths and fly apart into space, then the system starts again;
   - a neutron star is heavier than the Sun, so the planets keep orbiting, but its pulsar wind blows glowing tails off every planet.
 - A deep sky mode:
@@ -37,15 +37,14 @@ Light rays bend around the black hole, so the far side of the disk shows up abov
   - planetary nebula: it swells into a red giant, then puffs off a glowing ring nebula, teal inside and red outside, around a tiny blue-white dwarf;
   - supernova: it swells, collapses, explodes in a flash, and leaves a newborn pulsar inside an expanding filament nebula.
 - A single neutron star with Cosmic events on is a magnetar: its twisted magnetic loops glow brighter, then a giant flare cracks the crust, shakes the star, flashes and sends out a shockwave.
-- Comets with blue ion tails and curved dust tails sweep through now and then, and meteors streak across the sky.
 - Pair mode shows two objects orbiting each other, with light bent by every black hole and neutron star. Pick any combination.
 - Pairs play out a cosmic event, then fade and start again:
 
   | Pair | Event |
   | --- | --- |
   | Two black holes | They spiral in, sending gravitational waves across a glowing spacetime sheet, then merge in a flash with a shockwave ring. The new black hole rings down and grows a disk. |
-  | Black hole or neutron star and a star | A stream of gas pours from the star into the compact object. The star stretches, then is torn apart and swallowed. A black hole then fires jets; a neutron star's pulsar beams blaze brighter. |
-  | Black hole and Earth | A stream of molten rock pours from the Earth into the disk. The Earth stretches, then is torn apart and swallowed, and the black hole fires jets. |
+  | Black hole or neutron star and a star | A stream of gas pours from the star into the compact object. The star stretches, then breaks into a cloud of hot gas that swirls around, feeds the disk and partly escapes. A black hole then fires jets; a neutron star's pulsar beams blaze brighter. |
+  | Black hole and Earth | The Earth stretches, then breaks into a cloud of rock, water and ice together with its Moon. The fragments follow real gravity: some heat up and fall into the disk, others are flung away, and the black hole fires jets. |
   | Two neutron stars | They spiral in and merge: a gamma-ray-burst jet, a shockwave, and a kilonova cloud of fresh heavy elements that cools from blue to red around the new black hole. |
   | Black hole and neutron star | They spiral in, the neutron star is torn apart and swallowed, and the black hole fires jets. |
   | Two stars, or any other pair with a wormhole, a planet or Earth | A calm orbit. |
@@ -97,7 +96,6 @@ gnome-extensions prefs space-wallpaper@include5691.github.io
 | --- | --- | --- |
 | Mode | single | single, pair, solar system, deep sky |
 | Black hole spin | 60 % | 0 – 99 |
-| Comets and meteors | on | |
 | Object (single) | black hole | black hole, neutron star, star, wormhole, ringed planet, Earth, quasar, Dyson swarm, Crab Nebula |
 | First object (pair) | black hole | black hole, neutron star, star, wormhole, ringed planet, Earth |
 | Second object (pair) | black hole | black hole, neutron star, star, wormhole, ringed planet, Earth |
@@ -154,8 +152,9 @@ The shader is compiled only with the parts the current scene needs, so the first
 | --- | --- |
 | `extension.js` | Hooks into backgrounds, timer, settings, window cover check, lock screen |
 | `renderer.js` | Offscreen passes, camera and cursor easing, galaxy star splatting |
-| `events.js` | Object layout, orbits, lighting, comets, pair events, the star life cycles and the magnetar |
+| `events.js` | Object layout, orbits, lighting, pair events, the star life cycles and the magnetar |
 | `galaxy.js` | Spiral galaxy, galaxy collision and star cluster particles |
+| `debris.js` | Tidal disruption fragments that orbit, heat up, feed the disk or escape |
 | `sky.js` | Sun, Moon and planet positions for real time |
 | `shader.js` | Scene and ASCII GLSL shaders |
 | `earthmap.js` | 256×128 land mask of the Earth |

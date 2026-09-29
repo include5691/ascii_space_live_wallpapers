@@ -31,9 +31,9 @@ const SCENE_UNIFORMS = [
     'u_resolution', 'u_camera', 'u_fov', 'u_flow', 'u_time', 'u_exposure', 'u_doppler',
     'u_bodies', 'u_disks', 'u_kinds', 'u_count', 'u_gw', 'u_burst', 'u_stream', 'u_stream_center',
     'u_tidal', 'u_jets', 'u_kilonova', 'u_flash', 'u_fade', 'u_beams', 'u_background', 'u_star',
-    'u_spins', 'u_light', 'u_comet', 'u_comet_ion', 'u_comet_dust',
+    'u_spins', 'u_light',
     'earth_map', 'u_light_color', 'u_planets', 'u_belt', 'u_orbits', 'u_distance',
-    'u_live', 'u_moon_tilt', 'u_moons', 'u_moon_hosts', 'u_magnetar', 'u_quasar', 'galaxy_map',
+    'u_live', 'u_moon_tilt', 'u_moon_keep', 'u_moons', 'u_moon_hosts', 'u_magnetar', 'u_quasar', 'galaxy_map',
 ];
 const ASCII_UNIFORMS = ['scene', 'u_output', 'u_cells', 'u_origin', 'u_font', 'u_labels', 'u_label_text'];
 const LETTERS = 'ACEHIJMNPRSTUVY';
@@ -178,9 +178,16 @@ function lensed(spot, center, mass, fov, aspect) {
     return {...spot, x: center.x + dx / (2 * aspect), y: center.y - dy / 2};
 }
 
-function splatParticles({count, positions, colors}, camera, {columns, rows, aspect}, light) {
+function splatParticles({count, positions, colors, occluder}, camera, {columns, rows, aspect}, light) {
     const {origin, forward, rolledRight, rolledUp} = cameraBasis(camera);
     const {fov} = camera;
+    const toScreen = point => {
+        const relative = sub(point, origin);
+        const depth = dot(relative, forward);
+        return {depth, x: dot(relative, rolledRight) / (depth * fov), y: dot(relative, rolledUp) / (depth * fov)};
+    };
+    const shadow = occluder ? toScreen(occluder.center) : null;
+    const shadowRadius = shadow ? occluder.radius / (shadow.depth * fov) : 0;
     for (let index = 0; index < count; index++) {
         const o = index * 3;
         const rx = positions[o] - origin[0];
@@ -190,8 +197,12 @@ function splatParticles({count, positions, colors}, camera, {columns, rows, aspe
         if (depth <= 0)
             continue;
         const scale = 1 / (depth * fov);
-        const x = ((rx * rolledRight[0] + ry * rolledRight[1] + rz * rolledRight[2]) * scale / (2 * aspect) + 0.5) * columns - 0.5;
-        const y = (0.5 - (rx * rolledUp[0] + ry * rolledUp[1] + rz * rolledUp[2]) * scale / 2) * rows - 0.5;
+        const sx = (rx * rolledRight[0] + ry * rolledRight[1] + rz * rolledRight[2]) * scale;
+        const sy = (rx * rolledUp[0] + ry * rolledUp[1] + rz * rolledUp[2]) * scale;
+        if (shadow && depth > shadow.depth && (sx - shadow.x) ** 2 + (sy - shadow.y) ** 2 < shadowRadius ** 2)
+            continue;
+        const x = (sx / (2 * aspect) + 0.5) * columns - 0.5;
+        const y = (0.5 - sy / 2) * rows - 0.5;
         if (x < -1 || y < -1 || x >= columns || y >= rows)
             continue;
         const cells = rows / (2 * fov * Math.max(depth, camera.distance / 2));
@@ -393,9 +404,9 @@ export const SpaceContent = GObject.registerClass({
         const options = this._options;
         this._flow += dt * options.speed / FLOW_PERIOD;
         this._time = (this._time + dt) % TIME_PERIOD;
-        this._scene.advance(dt * options.orbitSpeed, dt);
+        this._scene.advance(dt * options.orbitSpeed);
+        this._scene.shaderTime = this._time;
         this._scene.spin = options.spin;
-        this._scene.comets = options.comets;
         this._scene.sky = options.realTime ? skyAt(Date.now()) : null;
         const scene = this._scene.state(this._locked || options.orbitSpeed === 0);
         this._updateCamera(dt, scene.lift);
@@ -437,7 +448,6 @@ export const SpaceContent = GObject.registerClass({
             ['u_gw', scene.gw], ['u_burst', scene.burst], ['u_stream', scene.stream],
             ['u_stream_center', scene.streamCenter], ['u_tidal', scene.tidal], ['u_jets', scene.jets],
             ['u_kilonova', scene.kilonova], ['u_star', scene.star], ['u_light', scene.light],
-            ['u_comet', scene.comet], ['u_comet_ion', scene.cometIon], ['u_comet_dust', scene.cometDust],
             ['u_live', scene.live], ['u_magnetar', scene.magnetar],
         ])
             pipeline.set_uniform_float(uniforms[name], 4, 1, value);
@@ -448,6 +458,7 @@ export const SpaceContent = GObject.registerClass({
         pipeline.set_uniform_float(uniforms.u_moon_hosts, 1, 6, scene.moonHosts);
         pipeline.set_uniform_1f(uniforms.u_quasar, scene.quasar);
         pipeline.set_uniform_1f(uniforms.u_moon_tilt, scene.moonTilt);
+        pipeline.set_uniform_1f(uniforms.u_moon_keep, scene.moonKeep);
 
         const camera = {yaw: this._camera.yaw, pitch, roll: options.tilt, distance: scene.distance, fov};
         this._view = {...camera, aspect: this._grid.aspect};
@@ -461,8 +472,6 @@ export const SpaceContent = GObject.registerClass({
 
     _scenePipelineFor(options) {
         const features = [...this._scene.features, ...BACKGROUND_FEATURES[options.background] ?? []];
-        if (options.comets && options.mode !== 'galaxy')
-            features.push('COMET', 'METEORS');
         const key = `${this._scene.slots} ${features.sort().join(' ')}`;
         let target = this._scenePipelines.get(key);
         if (!target) {
@@ -474,6 +483,8 @@ export const SpaceContent = GObject.registerClass({
 
     _updateGalaxy(target, particles, camera) {
         if (!particles || !target.galaxy)
+            return;
+        if (!particles.count && this._galaxyBlank === this._galaxyTexture && target.galaxyTexture === this._galaxyTexture)
             return;
         if (target.galaxyTexture !== this._galaxyTexture) {
             target.pipeline.set_layer_texture(2, this._galaxyTexture);
@@ -495,6 +506,7 @@ export const SpaceContent = GObject.registerClass({
         const {columns, rows} = this._grid;
         this._galaxyTexture.set_region(0, 0, 0, 0, columns, rows, columns, rows,
             Cogl.PixelFormat.RGBA_8888, columns * 4, pixels);
+        this._galaxyBlank = particles.count ? null : this._galaxyTexture;
     }
 
     _updateLabels(scene, camera) {

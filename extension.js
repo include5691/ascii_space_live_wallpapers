@@ -34,7 +34,6 @@ function readOptions(settings) {
         events: settings.get_boolean('events'),
         background: settings.get_string('background'),
         spin: settings.get_uint('spin') / 100,
-        comets: settings.get_boolean('comets'),
         pauseWhenCovered: settings.get_boolean('pause-when-covered'),
         followCursor: settings.get_boolean('follow-cursor'),
         sensitivity: settings.get_uint('cursor-sensitivity') / 100,

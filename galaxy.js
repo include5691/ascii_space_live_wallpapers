@@ -39,7 +39,7 @@ const YOUNG_COLOR = [0.55, 0.7, 1];
 const NEBULA_COLOR = [1, 0.4, 0.55];
 const BULGE_COLOR = [1, 0.8, 0.55];
 
-function randomStream(seed) {
+export function randomStream(seed) {
     let state = seed >>> 0;
     return () => {
         state = (state + 0x6d2b79f5) >>> 0;
@@ -50,7 +50,7 @@ function randomStream(seed) {
     };
 }
 
-function gaussian(random) {
+export function gaussian(random) {
     return Math.sqrt(-2 * Math.log(1 - random())) * Math.cos(2 * Math.PI * random());
 }
 

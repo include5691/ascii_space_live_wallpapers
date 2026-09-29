@@ -70,10 +70,6 @@
       <default>false</default>
       <summary>Show planet names in solar system mode</summary>
     </key>
-    <key name="comets" type="b">
-      <default>true</default>
-      <summary>Show passing comets and meteors</summary>
-    </key>
     <key name="events" type="b">
       <default>true</default>
       <summary>Play cosmic events: mergers, devoured stars, supernovae and magnetar flares</summary>

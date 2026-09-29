@@ -700,6 +700,17 @@ vec3 bandedAlbedo(vec3 local, vec3 light, vec3 dark, float storm, float seed) {
     return mix(color, vec3(0.85, 0.35, 0.22), storm * exp(-dot(spot * vec2(2.5, 9.0), spot * vec2(2.5, 9.0))));
 }
 
+float moonKept(float index) {
+    return abs(index - u_tidal.w) < 0.5 ? u_moon_keep : 1.0;
+}
+
+vec3 tidalWarp(vec3 d, float index) {
+    if (abs(index - u_tidal.w) > 0.5)
+        return d;
+    vec3 axis = vec3(u_tidal.y, 0.0, u_tidal.z);
+    return d + axis * dot(d, axis) * (1.0 / u_tidal.x - 1.0);
+}
+
 float ringShadow(vec3 p, vec3 center, vec3 axis, float radius) {
     vec3 light = lightFrom(p);
     float along = dot(light, axis);
@@ -713,7 +724,7 @@ vec3 planetSurface(vec3 n, vec3 p, vec3 view, vec3 center, float scale, float in
     vec3 axis = normalize(PLANET_AXIS);
     vec3 local = bodyFrame(n, axis, 2.0 * PI * (u_time / TIME_PERIOD * PLANET_TURNS + index * 0.3));
     vec3 color = bandedAlbedo(local, vec3(0.96, 0.88, 0.7), vec3(0.78, 0.58, 0.38), 1.0, index);
-    float diffuse = max(dot(n, lightFrom(p)), 0.0) * ringShadow(p, center, axis, PLANET_RADIUS * scale);
+    float diffuse = max(dot(n, lightFrom(p)), 0.0) * mix(1.0, ringShadow(p, center, axis, PLANET_RADIUS * scale), moonKept(index));
     float rim = pow(1.0 - clamp(dot(n, -view), 0.0, 1.0), 3.0);
     return u_light_color * (color * (0.03 + 1.6 * diffuse) + vec3(0.35, 0.5, 0.8) * rim * diffuse * 0.4);
 }
@@ -809,10 +820,6 @@ vec3 earthMoonCenter(vec3 center, float scale) {
     vec3 light = lightFrom(center);
     angle = atan(light.z, light.x) - 2.0 * PI * u_live.z;
     return center + vec3(cos(angle) * cos(u_moon_tilt), sin(u_moon_tilt), sin(angle) * cos(u_moon_tilt)) * reach;
-}
-
-float moonKept(float index) {
-    return abs(index - u_tidal.w) < 0.5 ? u_moon_keep : 1.0;
 }
 
 vec4 earthMoonHit(vec3 from, vec3 to, vec3 center, float scale, float kept) {
@@ -1180,12 +1187,16 @@ vec4 renderPixel(vec2 st) {
 #ifdef HAS_PLANET
             if (u_kinds[i] < 3.5 || u_kinds[i] > 4.5)
                 continue;
+            if (moonKept(float(i)) <= 0.0)
+                continue;
             vec3 center = u_bodies[i].xyz;
             vec3 axis = normalize(PLANET_AXIS);
-            float before = dot(pos - center, axis);
-            float after = dot(next - center, axis);
+            vec3 from = tidalWarp(pos - center, float(i));
+            vec3 to = tidalWarp(next - center, float(i));
+            float before = dot(from, axis);
+            float after = dot(to, axis);
             if (before * after < 0.0) {
-                vec4 ring = ringSample(mix(pos, next, before / (before - after)), center,
+                vec4 ring = ringSample(center + mix(from, to, before / (before - after)), center,
                     PLANET_RADIUS * u_bodies[i].w, axis, normalize(vel));
                 color += transmittance * ring.rgb;
                 transmittance *= 1.0 - ring.a;
@@ -1263,11 +1274,7 @@ vec4 renderPixel(vec2 st) {
         for (int i = 0; i < SLOTS; i++) {
             if (float(i) >= u_count)
                 break;
-            vec3 d = pos - u_bodies[i].xyz;
-            if (abs(float(i) - u_tidal.w) < 0.5) {
-                vec3 axis = vec3(u_tidal.y, 0.0, u_tidal.z);
-                d += axis * dot(d, axis) * (1.0 / u_tidal.x - 1.0);
-            }
+            vec3 d = tidalWarp(pos - u_bodies[i].xyz, float(i));
             float r = length(d);
             if (r < closest[i]) {
                 closest[i] = r;

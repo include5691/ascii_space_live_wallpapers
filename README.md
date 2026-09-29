@@ -47,6 +47,7 @@ Light rays bend around the black hole, so the far side of the disk shows up abov
   | Two black holes | They spiral in, sending gravitational waves across a glowing spacetime sheet, then merge in a flash with a shockwave ring. The new black hole rings down and grows a disk. |
   | Black hole or neutron star and a star | A stream of gas pours from the star into the compact object. The star stretches, then breaks into a cloud of hot gas that swirls around, feeds the disk and partly escapes. A black hole then fires jets; a neutron star's pulsar beams blaze brighter. |
   | Black hole and Earth | The Earth stretches, then breaks into a cloud of rock, water and ice together with its Moon. The fragments follow real gravity: some heat up and fall into the disk, others are flung away, and the black hole fires jets. |
+  | Black hole and a ringed planet | The planet and its rings stretch, then break into a cloud of gas and ice together with its three moons. The ring fragments keep circling, then swirl into the disk or fly away, and the black hole fires jets. |
   | Two neutron stars | They spiral in and merge: a gamma-ray-burst jet, a shockwave, and a kilonova cloud of fresh heavy elements that cools from blue to red around the new black hole. |
   | Black hole and neutron star | They spiral in, the neutron star is torn apart and swallowed, and the black hole fires jets. |
   | Two stars, or any other pair with a wormhole, a planet or Earth | A calm orbit. |

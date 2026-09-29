@@ -1,7 +1,7 @@
 import {BIRTH, ENVELOPE_RADIUS, SHOCK_SPEED, SolarBirth, growthOf, moonAngle, sunAt} from './birth.js';
 import {BIG_BANG, BigBang} from './cosmos.js';
 import {DebrisField} from './debris.js';
-import {GalaxyCollision, SpiralGalaxy, StarCluster} from './galaxy.js';
+import {GalaxyCollision, SpiralGalaxy, StarCluster, crossed, normalized} from './galaxy.js';
 
 const SEPARATION = 12;
 const PAIR_SCALE = 0.6;
@@ -14,6 +14,9 @@ const NEUTRON_DISK_INNER = 5.5;
 const NEUTRON_RADIUS = 2.5;
 const STAR_RADIUS = 5;
 const EARTH_RADIUS = 3;
+const PLANET_RADIUS = 3.2;
+const PLANET_AXIS = [-0.14, 0.92, 0.37];
+const PLANET_RING = [1.35, 2.3];
 const WORMHOLE_THROAT = 2.4;
 const ANGULAR_SPEED = 2 * Math.PI / 60;
 const MIN_SEPARATION = 2.6;
@@ -132,7 +135,13 @@ const MAX_DEBRIS_FEED = 2.5;
 const VICTIM_DEBRIS = {
     'star': {palette: [[1, 0.85, 0.6], [1, 0.7, 0.4], [1, 0.95, 0.8]], glow: 0.4},
     'earth': {palette: [[0.25, 0.4, 0.9], [0.45, 0.42, 0.28], [0.3, 0.5, 0.25], [0.9, 0.92, 0.95]], glow: 0.2},
+    'planet': {palette: [[0.96, 0.88, 0.7], [0.78, 0.58, 0.38], [0.85, 0.35, 0.22]], glow: 0.3},
 };
+const RING_DEBRIS = 1500;
+const RING_COLORS = [[0.88, 0.8, 0.66], [0.75, 0.68, 0.55], [0.95, 0.93, 0.88]];
+const RING_GLOW = 0.35;
+const RING_SPIN = 0.3;
+const PLANET_MOONS = [{orbit: 1.9, radius: 0.16}, {orbit: 2.4, radius: 0.21}, {orbit: 2.9, radius: 0.26}];
 const PLANET_DEBRIS_COLORS = [
     [[0.55, 0.52, 0.5]], [[0.95, 0.85, 0.6]], [[0.25, 0.4, 0.9], [0.45, 0.42, 0.28], [0.9, 0.92, 0.95]], [[0.8, 0.35, 0.15]],
     [[0.93, 0.85, 0.72], [0.7, 0.5, 0.35]], [[0.95, 0.88, 0.68]], [[0.55, 0.85, 0.9]], [[0.25, 0.4, 0.95]],
@@ -157,6 +166,7 @@ const SCENARIOS = {
     'black-hole+neutron-star': 'disruption',
     'black-hole+star': 'devour',
     'black-hole+earth': 'devour',
+    'black-hole+planet': 'devour',
     'neutron-star+star': 'devour',
 };
 
@@ -212,7 +222,7 @@ function body(kind, position, scale, gain = kind === 'black-hole' ? 1 : 0, outer
     return {kind, position, scale, disk: disk(kind, outer, gain)};
 }
 
-const RADII = {'star': STAR_RADIUS, 'earth': EARTH_RADIUS};
+const RADII = {'star': STAR_RADIUS, 'earth': EARTH_RADIUS, 'planet': PLANET_RADIUS};
 
 function radiusOf(kind, scale) {
     return (RADII[kind] ?? NEUTRON_RADIUS) * scale;
@@ -846,7 +856,7 @@ export class Scene {
     _devour(state) {
         const t = this._time;
         const end = FEED_TIME + PLUNGE_TIME;
-        const victim = this._objects.findIndex(kind => kind === 'star' || kind === 'earth');
+        const victim = this._objects.findIndex(kind => kind in VICTIM_DEBRIS);
         const eater = 1 - victim;
         const eaterKind = this._objects[eater];
         const victimKind = this._objects[victim];
@@ -907,6 +917,8 @@ export class Scene {
         const radius = radiusOf(victimKind, state.bodies[victim].scale);
         this._eaterAtTear = [...state.bodies[eater].position];
         debris.burst({offset, velocity, radius, axis, stretch: state.tidal[0], palette, glow, gravity: PAIR_GRAVITY, count: PAIR_DEBRIS});
+        if (victimKind === 'planet')
+            this._tearRing(debris, {offset, velocity, radius, axis, stretch: state.tidal[0]}, victim);
         if (victimKind !== 'earth')
             return;
         const angle = this._sky
@@ -925,6 +937,43 @@ export class Scene {
             glow: MOON_GLOW,
             gravity: PAIR_GRAVITY,
             count: MOON_DEBRIS,
+        });
+    }
+
+    _tearRing(debris, {offset, velocity, radius, axis, stretch}, victim) {
+        const normal = normalized(PLANET_AXIS);
+        debris.ring({
+            offset, velocity, normal, axis, stretch,
+            inner: PLANET_RING[0] * radius,
+            outer: PLANET_RING[1] * radius,
+            spin: RING_SPIN,
+            palette: RING_COLORS,
+            glow: RING_GLOW,
+            gravity: PAIR_GRAVITY,
+            count: RING_DEBRIS,
+        });
+        const side = normalized(crossed(normal, [0, 0, 1]));
+        const front = crossed(side, normal);
+        PLANET_MOONS.forEach((moon, k) => {
+            const speed = 7 - 3 * k + 0.5 * k * (k - 1);
+            const phase = 0.15 + 0.37 * k - 0.015 * k * (k - 1) + victim * 0.5;
+            const angle = 2 * Math.PI * (this._shaderTime / SHADER_PERIOD * speed + phase);
+            const inclination = (k - 1) * 0.55 + 0.2;
+            const tilted = front.map((v, i) => v * Math.cos(inclination) + normal[i] * Math.sin(inclination));
+            const reach = moon.orbit * radius;
+            const place = side.map((v, i) => (v * Math.cos(angle) + tilted[i] * Math.sin(angle)) * reach);
+            const turn = 2 * Math.PI * speed / SHADER_PERIOD * reach;
+            debris.burst({
+                offset: offset.map((v, i) => v + place[i]),
+                velocity: velocity.map((v, i) => v + (tilted[i] * Math.cos(angle) - side[i] * Math.sin(angle)) * turn),
+                radius: moon.radius * radius,
+                axis,
+                stretch: 1,
+                palette: MOON_COLORS,
+                glow: MOON_GLOW,
+                gravity: PAIR_GRAVITY,
+                count: PLANET_MOON_DEBRIS,
+            });
         });
     }
 }

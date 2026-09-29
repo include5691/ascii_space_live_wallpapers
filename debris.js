@@ -1,4 +1,4 @@
-import {gaussian, randomStream} from './galaxy.js';
+import {crossed, gaussian, normalized, randomStream} from './galaxy.js';
 
 const MAX_DEBRIS = 6000;
 const STEP = 0.02;
@@ -33,15 +33,35 @@ export class DebrisField {
                 u = [0, 1, 2].map(() => 2 * random() - 1);
             while (u[0] ** 2 + u[1] ** 2 + u[2] ** 2 > 1);
             const along = u[0] * axis[0] + u[1] * axis[1] + u[2] * axis[2];
-            const index = this.count++;
-            for (let i = 0; i < 3; i++) {
-                const across = u[i] - axis[i] * along;
-                this._motion[index * 6 + i] = offset[i] + (across + axis[i] * along * stretch) * radius;
-                this._motion[index * 6 + 3 + i] = velocity[i] + gaussian(random) * 0.04;
-            }
-            const color = palette[Math.floor(random() * palette.length)];
-            this._traits.set([...color, glow * (0.6 + 0.8 * random()), gravity], index * 5);
+            const position = u.map((v, i) => offset[i] + (v - axis[i] * along + axis[i] * along * stretch) * radius);
+            this._add(position, velocity, palette, glow, gravity);
         }
+    }
+
+    ring({offset, velocity, normal, inner, outer, spin, axis, stretch, palette, glow, gravity, count}) {
+        const random = this._random;
+        const side = normalized(crossed(normal, Math.abs(normal[1]) < 0.9 ? [0, 1, 0] : [1, 0, 0]));
+        const front = crossed(normal, side);
+        for (let k = 0; k < count && this.count < MAX_DEBRIS; k++) {
+            const angle = 2 * Math.PI * random();
+            const reach = Math.sqrt(inner ** 2 + (outer ** 2 - inner ** 2) * random());
+            const local = side.map((v, i) => (v * Math.cos(angle) + front[i] * Math.sin(angle)) * reach);
+            const along = local[0] * axis[0] + local[1] * axis[1] + local[2] * axis[2];
+            const position = local.map((v, i) => offset[i] + v + axis[i] * along * (stretch - 1));
+            const orbit = crossed(local, normal);
+            this._add(position, velocity.map((v, i) => v + orbit[i] * spin), palette, glow, gravity);
+        }
+    }
+
+    _add(position, velocity, palette, glow, gravity) {
+        const random = this._random;
+        const index = this.count++;
+        for (let i = 0; i < 3; i++) {
+            this._motion[index * 6 + i] = position[i];
+            this._motion[index * 6 + 3 + i] = velocity[i] + gaussian(random) * 0.04;
+        }
+        const color = palette[Math.floor(random() * palette.length)];
+        this._traits.set([...color, glow * (0.6 + 0.8 * random()), gravity], index * 5);
     }
 
     set capture(radius) {

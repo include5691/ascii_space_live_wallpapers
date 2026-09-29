@@ -199,11 +199,11 @@ function unitVector(random) {
     return [ring * Math.cos(angle), z, ring * Math.sin(angle)];
 }
 
-function crossed(a, b) {
+export function crossed(a, b) {
     return [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
 }
 
-function normalized(v) {
+export function normalized(v) {
     const size = Math.hypot(...v);
     return v.map(x => x / size);
 }

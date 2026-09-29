@@ -46,6 +46,7 @@ const EVENT_PAIRS = new Set([
     'black-hole+star',
     'neutron-star+star',
     'black-hole+earth',
+    'black-hole+planet',
 ]);
 
 function selectedObjects(settings) {

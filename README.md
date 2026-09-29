@@ -30,7 +30,8 @@ Light rays bend around the black hole, so the far side of the disk shows up abov
 - A deep sky mode:
   - a spiral galaxy with a yellow bulge, blue trailing arms and pink star-forming knots, turning slowly;
   - two spiral galaxies colliding: a real gravity simulation of thousands of stars. They swing past each other, throw out long tidal tails, fall back and merge, then it starts again;
-  - a globular star cluster: 16,000 old stars packed into a bright core, with orange giants and blue stragglers, slowly orbiting.
+  - a globular star cluster: 16,000 old stars packed into a bright core, with orange giants and blue stragglers, slowly orbiting;
+  - the Big Bang: the history of the universe in 3 minutes. A tiny point flashes, space inflates into white-hot plasma that churns and cools to red, the fog clears into the cosmic microwave background, the dark ages pass, the first stars ignite, thousands of galaxies gather into the filaments of the cosmic web, and the camera settles on a spiral galaxy under today's stars. Then it starts again.
 - Real time: Earth's day and night follow the real clock and season, the Moon shows today's phase, and the solar system planets sit where they really are today.
 - Three skies: the Milky Way, a glowing band with dust lanes and a bright core; a pink and teal emission nebula with dark dust; or plain stars. All are bent by every black hole, neutron star and wormhole.
 - A single star lives out one of two real fates, taking turns:
@@ -100,7 +101,7 @@ gnome-extensions prefs space-wallpaper@include5691.github.io
 | First object (pair) | black hole | black hole, neutron star, star, wormhole, ringed planet, Earth |
 | Second object (pair) | black hole | black hole, neutron star, star, wormhole, ringed planet, Earth |
 | Center (solar system) | Sun | Sun, black hole, neutron star, wormhole |
-| Object (deep sky) | spiral galaxy | spiral galaxy, galaxy collision, star cluster |
+| Object (deep sky) | spiral galaxy | spiral galaxy, galaxy collision, star cluster, Big Bang |
 | Planet names (solar system) | off | |
 | Real time (Earth, solar system) | off | |
 | Speed | 100 % | 0 – 400, orbits and cosmic events |
@@ -110,7 +111,7 @@ gnome-extensions prefs space-wallpaper@include5691.github.io
 | Follow cursor | on | |
 | Sensitivity | 50 % | 0 – 200 |
 | Smoothness | 40 % | 0 – 100 |
-| Background | Milky Way | Milky Way, stars, nebula |
+| Background | Milky Way | Milky Way, stars, nebula; the Big Bang uses its own sky |
 | Character size | 3 | 1 – 8 |
 | Disk rotation speed | 100 % | 0 – 400 |
 | Camera height | 8° | -30 – 60 |
@@ -154,6 +155,7 @@ The shader is compiled only with the parts the current scene needs, so the first
 | `renderer.js` | Offscreen passes, camera and cursor easing, galaxy star splatting |
 | `events.js` | Object layout, orbits, lighting, pair events, the star life cycles and the magnetar |
 | `galaxy.js` | Spiral galaxy, galaxy collision and star cluster particles |
+| `cosmos.js` | Big Bang timeline, first stars, cosmic web and the forming galaxy |
 | `debris.js` | Tidal disruption fragments that orbit, heat up, feed the disk or escape |
 | `sky.js` | Sun, Moon and planet positions for real time |
 | `shader.js` | Scene and ASCII GLSL shaders |

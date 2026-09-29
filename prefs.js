@@ -28,6 +28,7 @@ const GALAXIES = [
     ['spiral', 'Spiral galaxy'],
     ['collision', 'Galaxy collision'],
     ['cluster', 'Star cluster'],
+    ['bigbang', 'Big Bang'],
 ];
 
 const CENTERS = [
@@ -190,7 +191,8 @@ export default class SpaceWallpaperPreferences extends ExtensionPreferences {
             title: 'Scene',
             header_suffix: resetButton(settings, sceneKeys),
         });
-        scene.add(comboRow(settings, 'background', 'Background', BACKGROUNDS));
+        const background = comboRow(settings, 'background', 'Background', BACKGROUNDS);
+        scene.add(background);
         scene.add(spinRow(settings, 'char-size', 'Character size', 'Screen pixels per font dot'));
         const rotation = spinRow(settings, 'rotation-speed', 'Disk rotation speed', 'Percent');
         scene.add(rotation);
@@ -206,6 +208,7 @@ export default class SpaceWallpaperPreferences extends ExtensionPreferences {
             const pair = selected.length === 2;
             const mode = settings.get_string('mode');
             const system = isSystem(settings);
+            background.set_sensitive(mode !== 'galaxy' || settings.get_string('galaxy') !== 'bigbang');
             const eventsOn = settings.get_boolean('events') && !system;
             singleObject.set_visible(mode === 'single');
             firstObject.set_visible(mode === 'pair');
@@ -221,7 +224,7 @@ export default class SpaceWallpaperPreferences extends ExtensionPreferences {
             [rotation, doppler].forEach(row => row.set_sensitive(disk));
         };
         syncObjectRows();
-        ['mode', 'first-object', 'second-object', 'center', 'events'].forEach(key => connectSetting(settings, key, spin, syncObjectRows));
+        ['mode', 'first-object', 'second-object', 'center', 'galaxy', 'events'].forEach(key => connectSetting(settings, key, spin, syncObjectRows));
 
         const page = new Adw.PreferencesPage();
         [objects, performance, cursor, scene].forEach(group => page.add(group));

@@ -1,3 +1,4 @@
+import {BIG_BANG, BigBang} from './cosmos.js';
 import {DebrisField} from './debris.js';
 import {GalaxyCollision, SpiralGalaxy, StarCluster} from './galaxy.js';
 
@@ -44,7 +45,9 @@ const CRAB_DISTANCE = 36;
 const CRAB_SCALE = 0.7;
 const CRAB_BEAMS = 1.5;
 const CRAB_LIFT = 0.5;
-const GALAXY_SCENARIOS = {collision: GalaxyCollision, cluster: StarCluster};
+const GALAXY_SCENARIOS = {collision: GalaxyCollision, cluster: StarCluster, bigbang: BigBang};
+const BIG_BANG_VIEW = {far: 70, near: 30, low: 0.3, high: 0.85};
+const BANG_FLASH = 3;
 const KIND_FEATURES = {
     'black-hole': ['BLACK_HOLE', 'DISK'], 'neutron-star': ['NEUTRON'], 'star': ['STAR'],
     'wormhole': ['WORMHOLE'], 'planet': ['PLANET'], 'earth': ['EARTH'],
@@ -66,6 +69,7 @@ const SCENARIO_FEATURES = {
     spiral: ['GALAXY'],
     collision: ['GALAXY'],
     cluster: ['GALAXY'],
+    bigbang: ['GALAXY', 'BIGBANG'],
 };
 export const PAIR_STAND_INS = {'quasar': 'black-hole', 'dyson': 'star', 'crab': 'neutron-star'};
 
@@ -158,6 +162,7 @@ const DURATIONS = {
     devour: FEED_TIME + PLUNGE_TIME + AFTERMATH_TIME,
     supernova: EXPLOSION_TIME + REMNANT_TIME,
     collision: COLLISION_TIME,
+    bigbang: BIG_BANG.end,
     'system-devour': SYSTEM_DEVOUR_TIME,
     'system-escape': ESCAPE_TIME,
 };
@@ -351,6 +356,8 @@ export class Scene {
             magnetar: [0, 0, 0, 0],
             quasar: 0,
             particles: null,
+            bigBang: [0, 0, 0, 0],
+            bigBangClock: [0, 0, 0, 0],
         };
         switch (this._scenario) {
         case 'single':
@@ -380,7 +387,8 @@ export class Scene {
         case 'spiral':
         case 'collision':
         case 'cluster':
-            this._galaxyView(state);
+        case 'bigbang':
+            this._galaxyView(state, still);
             break;
         case 'supernova':
             if (this._cycle % 2 === 0)
@@ -402,6 +410,7 @@ export class Scene {
         const duration = DURATIONS[this._scenario];
         if (still) {
             state.flash = 0;
+            state.bigBangClock[2] = 0;
         } else if (duration) {
             const fadeIn = this._looped ? smooth(0, FADE_TIME, this._time) : 1;
             state.fade = fadeIn * (1 - smooth(duration - FADE_TIME, duration, this._time));
@@ -437,11 +446,33 @@ export class Scene {
         ];
     }
 
-    _galaxyView(state) {
-        const view = GALAXY_VIEWS[this._scenario];
+    _galaxyView(state, still) {
         state.particles = this._galaxy;
+        if (this._scenario === 'bigbang') {
+            const t = still ? BIG_BANG.end - FADE_TIME : this._time;
+            if (still)
+                this._galaxy.update(t);
+            this._bigBang(state, t);
+            return;
+        }
+        const view = GALAXY_VIEWS[this._scenario];
         state.distance = view.distance;
         state.lift = view.lift;
+    }
+
+    _bigBang(state, t) {
+        const [plasmaIn, plasmaFull, plasmaOut, plasmaGone] = BIG_BANG.plasma;
+        const [lightIn, lightFull, lightOut, lightGone] = BIG_BANG.light;
+        state.bigBang = [
+            smooth(...BIG_BANG.glow, t) * (1 - smooth(BIG_BANG.bang, BIG_BANG.bang + 0.5, t)),
+            smooth(plasmaIn, plasmaFull, t) * (1 - smooth(plasmaOut, plasmaGone, t)),
+            smooth(lightIn, lightFull, t) * (1 - smooth(lightOut, lightGone, t)),
+            smooth(...BIG_BANG.today, t),
+        ];
+        state.bigBangClock = [t, 1 - smooth(...BIG_BANG.cooling, t), BANG_FLASH * decay(t - BIG_BANG.bang, 0.8), 0];
+        const settle = smooth(...BIG_BANG.galaxy, t);
+        state.distance = mix(BIG_BANG_VIEW.far, BIG_BANG_VIEW.near, settle);
+        state.lift = mix(BIG_BANG_VIEW.low, BIG_BANG_VIEW.high, settle);
     }
 
     _dyson(state) {

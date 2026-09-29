@@ -53,9 +53,10 @@
         <choice value="spiral"/>
         <choice value="collision"/>
         <choice value="cluster"/>
+        <choice value="bigbang"/>
       </choices>
       <default>'spiral'</default>
-      <summary>Show a spiral galaxy, two galaxies colliding, or a globular star cluster</summary>
+      <summary>Show a spiral galaxy, two galaxies colliding, a globular star cluster, or the history of the universe from the Big Bang</summary>
     </key>
     <key name="real-time" type="b">
       <default>false</default>

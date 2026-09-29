@@ -36,6 +36,8 @@ uniform float u_distance;
 uniform vec4 u_live;
 uniform float u_moon_tilt;
 uniform float u_moon_keep;
+uniform vec4 u_big_bang;
+uniform vec4 u_big_bang_clock;
 uniform vec4 u_moons[6];
 uniform float u_moon_hosts[6];
 uniform vec4 u_magnetar;
@@ -75,6 +77,7 @@ const float CRAB_STEP = 0.4;
 const vec3 CRAB_SQUASH = vec3(1.0, 0.8, 0.72);
 const vec3 CRAB_AXIS = vec3(0.0, 1.0, 0.0);
 const float GALAXY_RANGE = 4.0;
+const float PLASMA_DETAIL = 0.35;
 const float WIND_REACH = 16.0;
 const float WIND_DISTANCE = 8.0;
 const float WIND_GAIN = 0.3;
@@ -300,6 +303,51 @@ vec4 emissionNebula(vec3 d) {
     glow *= 1.0 - 0.7 * dust * smoothstep(0.1, 0.5, shape);
     glow += vec3(1.0, 0.92, 0.96) * exp(-r2 / 0.0006) * 0.5;
     return vec4(base + glow, shape * 1.5);
+}
+
+vec3 blackbody(float heat) {
+    vec3 red = vec3(0.7, 0.12, 0.03);
+    vec3 orange = vec3(1.0, 0.45, 0.1);
+    vec3 yellow = vec3(1.0, 0.85, 0.55);
+    vec3 white = vec3(0.9, 0.93, 1.0);
+    if (heat < 0.33)
+        return mix(red, orange, heat / 0.33);
+    if (heat < 0.66)
+        return mix(orange, yellow, (heat - 0.33) / 0.33);
+    return mix(yellow, white, (heat - 0.66) / 0.34);
+}
+
+vec3 cmbColor(float v) {
+    float x = clamp(v * 0.5 + 0.5, 0.0, 1.0) * 4.0;
+    vec3 cold = vec3(0.05, 0.1, 0.6);
+    vec3 cool = vec3(0.3, 0.75, 0.95);
+    vec3 mild = vec3(0.95, 0.9, 0.75);
+    vec3 warm = vec3(1.0, 0.55, 0.15);
+    vec3 hot = vec3(0.8, 0.12, 0.05);
+    if (x < 1.0)
+        return mix(cold, cool, x);
+    if (x < 2.0)
+        return mix(cool, mild, x - 1.0);
+    if (x < 3.0)
+        return mix(mild, warm, x - 2.0);
+    return mix(warm, hot, x - 3.0);
+}
+
+vec3 earlyUniverse(vec3 d, vec2 sky, float face, vec2 du, vec2 dv, float cellAngle) {
+    float t = u_big_bang_clock.x;
+    float heat = u_big_bang_clock.y;
+    vec3 color = vec3(0.0);
+    if (u_big_bang.y > 0.0) {
+        vec3 p = d * min(2.5 + 27.5 * pow(heat, 4.0), PLASMA_DETAIL / cellAngle) + vec3(0.0, 0.0, t * 0.12);
+        float warp = fbm(p + 3.0, 3.0);
+        float churn = fbm(p * 1.7 + warp * 2.0, 4.0);
+        color += blackbody(heat) * (0.1 + 1.4 * churn * churn) * u_big_bang.y * (0.25 + 0.6 * heat);
+    }
+    if (u_big_bang.z > 0.0)
+        color += cmbColor((fbm(d * 7.0 + 21.0, 5.0) - 0.5) * 3.2) * u_big_bang.z * 0.3;
+    if (u_big_bang.w > 0.0)
+        color += starfield(sky, face, du, dv, 1.0, 0.0) * u_big_bang.w;
+    return color;
 }
 
 vec3 otherSky(vec3 d, vec2 du, vec2 dv) {
@@ -947,6 +995,9 @@ vec4 renderPixel(vec2 st) {
     vec3 rolledRight = cos(roll) * right + sin(roll) * up;
     vec3 rolledUp = cos(roll) * up - sin(roll) * right;
     vec3 dir = normalize(forward + (uv.x * rolledRight + uv.y * rolledUp) * u_fov);
+#ifdef HAS_BIGBANG
+    float cellAngle = 2.0 * length(fwidth(dir));
+#endif
 
     vec3 axes[2];
     float closest[2];
@@ -1240,6 +1291,9 @@ vec4 renderPixel(vec2 st) {
     } else
 #endif
     if (!captured) {
+#if defined(HAS_BIGBANG)
+        color += transmittance * earlyUniverse(escape, sky, face, du, dv, cellAngle);
+#else
 #if defined(HAS_NEBULA)
         vec4 galaxy = emissionNebula(escape);
 #elif defined(HAS_MILKY_WAY)
@@ -1248,6 +1302,7 @@ vec4 renderPixel(vec2 st) {
         vec4 galaxy = vec4(nebula(escape), 0.0);
 #endif
         color += transmittance * (galaxy.rgb + starfield(sky, face, du, dv, 1.0 + 4.0 * galaxy.a, 0.0));
+#endif
     }
 
     for (int i = 0; i < SLOTS; i++) {
@@ -1303,6 +1358,11 @@ vec4 renderPixel(vec2 st) {
     color += stars * stars * GALAXY_RANGE;
 #endif
     color += u_flash * exp(-nearOrigin / 2.0) * vec3(1.0, 0.95, 0.9) * 1.5;
+#ifdef HAS_BIGBANG
+    float core = length(cross(origin, dir));
+    color += vec3(1.0, 0.95, 0.9) * (u_big_bang.x * (exp(-core * 2.0) * 6.0 + exp(-core * 0.4) * 0.3)
+        + u_big_bang_clock.z * (0.8 + exp(-core * 0.3) * 3.0));
+#endif
     color *= u_fade;
     color = vec3(1.0) - exp(-color * u_exposure);
     color = pow(color, vec3(1.0 / 2.2));

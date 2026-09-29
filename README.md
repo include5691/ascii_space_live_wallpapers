@@ -31,7 +31,7 @@ Light rays bend around the black hole, so the far side of the disk shows up abov
   - supernova: it swells, collapses, explodes in a flash, and leaves a newborn pulsar inside an expanding filament nebula.
 - A single neutron star with Cosmic events on is a magnetar: its twisted magnetic loops glow brighter, then a giant flare cracks the crust, shakes the star, flashes and sends out a shockwave.
 - Comets with blue ion tails and curved dust tails sweep through now and then, and meteors streak across the sky.
-- Click the empty desktop to throw a comet at the center object (not in galaxy mode). It falls in and flares the disk, the beams or the star. With a desktop icons extension, Super+Ctrl+click instead.
+- Throw at the center object (not in galaxy mode): Super+Shift+C throws a comet and Super+Shift+M a fiery meteorite from the mouse pointer. Clicking the empty desktop also throws a comet, but not while a desktop icons extension covers the wallpaper, because it gets the clicks. The object reacts when hit: a black hole's disk flares and it fires brief jets, a neutron star's beams brighten, and a star or planet flashes.
 - Pair mode shows two objects orbiting each other, with light bent by every black hole and neutron star. Pick any combination.
 - Pairs play out a cosmic event, then fade and start again:
 
@@ -98,7 +98,7 @@ gnome-extensions prefs space-wallpaper@include5691.github.io
 | Galaxy | spiral | spiral galaxy, galaxy collision |
 | Planet names (solar system) | off | |
 | Real time (Earth, solar system) | off | |
-| Throw comets | on | |
+| Throw comets and meteorites | on | shortcuts `throw-comet` and `throw-meteorite` in GSettings |
 | Speed | 100 % | 0 – 400, orbits and cosmic events |
 | Cosmic events | on | |
 | Frame rate | 30 fps | 5 – 60 |

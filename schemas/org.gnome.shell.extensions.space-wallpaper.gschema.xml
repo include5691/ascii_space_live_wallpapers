@@ -60,7 +60,15 @@
     </key>
     <key name="click-throw" type="b">
       <default>true</default>
-      <summary>Throw a comet at the center object by clicking the desktop</summary>
+      <summary>Throw comets and meteorites at the center object with a click or a shortcut</summary>
+    </key>
+    <key name="throw-comet" type="as">
+      <default><![CDATA[['<Super><Shift>c']]]></default>
+      <summary>Shortcut that throws a comet from the pointer</summary>
+    </key>
+    <key name="throw-meteorite" type="as">
+      <default><![CDATA[['<Super><Shift>m']]]></default>
+      <summary>Shortcut that throws a meteorite from the pointer</summary>
     </key>
     <key name="spin" type="u">
       <range min="0" max="99"/>

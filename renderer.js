@@ -31,7 +31,7 @@ const SCENE_UNIFORMS = [
     'u_resolution', 'u_camera', 'u_fov', 'u_flow', 'u_time', 'u_exposure', 'u_doppler',
     'u_bodies', 'u_disks', 'u_kinds', 'u_count', 'u_gw', 'u_burst', 'u_stream', 'u_stream_center',
     'u_tidal', 'u_jets', 'u_kilonova', 'u_flash', 'u_fade', 'u_beams', 'u_background', 'u_star',
-    'u_spins', 'u_light', 'u_comet', 'u_comet_ion', 'u_comet_dust', 'u_meteors',
+    'u_spins', 'u_light', 'u_comet', 'u_comet_ion', 'u_comet_dust', 'u_comet_style', 'u_impact', 'u_meteors',
     'earth_map', 'u_light_color', 'u_planets', 'u_system', 'u_belt', 'u_distance',
     'u_live', 'u_moon_tilt', 'u_moons', 'u_moon_hosts', 'u_magnetar', 'u_quasar', 'galaxy_map', 'u_galaxy',
 ];
@@ -199,6 +199,14 @@ function addLight(light, columns, rows, column, row, colors, o, share) {
     light[cell + 2] += colors[o + 2] * share;
 }
 
+let viewTemplate = null;
+
+function createViewTemplate(context) {
+    const pipeline = Cogl.Pipeline.new(context);
+    pipeline.add_snippet(Cogl.Snippet.new(Cogl.SnippetHook.FRAGMENT, ROUNDED_CLIP_DECLARATIONS, ROUNDED_CLIP_CODE));
+    return pipeline;
+}
+
 function drawFullscreen(framebuffer, pipeline) {
     framebuffer.draw_textured_rectangle(pipeline, 0, 0,
         framebuffer.get_width(), framebuffer.get_height(), 0, 0, 1, 1);
@@ -229,12 +237,12 @@ export const SpaceContent = GObject.registerClass({
         this._view = null;
     }
 
-    throwAt(x, y) {
+    throwAt(x, y, kind) {
         if (!this._view || this._locked)
             return;
         const {pixelWidth, pixelHeight, originX, originY, gridWidth, gridHeight} = this._grid;
         this._scene.throwFrom(unproject(this._view,
-            (x * pixelWidth + originX) / gridWidth, (y * pixelHeight + originY) / gridHeight));
+            (x * pixelWidth + originX) / gridWidth, (y * pixelHeight + originY) / gridHeight), kind);
         this.advance();
     }
 
@@ -246,8 +254,10 @@ export const SpaceContent = GObject.registerClass({
 
     setLocked(locked) {
         this._locked = locked;
-        if (locked)
+        if (locked) {
             this._camera = null;
+            this._scene.clearThrow();
+        }
         this.advance();
     }
 
@@ -290,9 +300,8 @@ export const SpaceContent = GObject.registerClass({
     _viewPipeline(actor, paintContext) {
         let pipeline = this._viewPipelines.get(actor);
         if (!pipeline) {
-            pipeline = Cogl.Pipeline.new(paintContext.get_framebuffer().get_context());
-            pipeline.add_snippet(Cogl.Snippet.new(Cogl.SnippetHook.FRAGMENT,
-                ROUNDED_CLIP_DECLARATIONS, ROUNDED_CLIP_CODE));
+            viewTemplate ??= createViewTemplate(paintContext.get_framebuffer().get_context());
+            pipeline = viewTemplate.copy();
             this._viewPipelines.set(actor, pipeline);
         }
 
@@ -432,13 +441,14 @@ export const SpaceContent = GObject.registerClass({
             ['u_stream_center', scene.streamCenter], ['u_tidal', scene.tidal], ['u_jets', scene.jets],
             ['u_kilonova', scene.kilonova], ['u_star', scene.star], ['u_light', scene.light],
             ['u_comet', scene.comet], ['u_comet_ion', scene.cometIon], ['u_comet_dust', scene.cometDust],
-            ['u_live', scene.live], ['u_magnetar', scene.magnetar],
+            ['u_live', scene.live], ['u_magnetar', scene.magnetar], ['u_impact', scene.impact],
         ])
             pipeline.set_uniform_float(uniforms[name], 4, 1, value);
         pipeline.set_uniform_1f(uniforms.u_flash, scene.flash);
         pipeline.set_uniform_1f(uniforms.u_fade, scene.fade);
         pipeline.set_uniform_1f(uniforms.u_beams, scene.beams);
         pipeline.set_uniform_1f(uniforms.u_meteors, scene.meteors);
+        pipeline.set_uniform_1f(uniforms.u_comet_style, scene.cometStyle);
         pipeline.set_uniform_1f(uniforms.u_background, BACKGROUNDS[options.background] ?? 0);
         pipeline.set_uniform_float(uniforms.u_moons, 4, 6, scene.moons);
         pipeline.set_uniform_float(uniforms.u_moon_hosts, 1, 6, scene.moonHosts);

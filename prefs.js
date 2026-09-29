@@ -82,6 +82,12 @@ const BACKGROUNDS = [
     ['nebula', 'Nebula'],
 ];
 
+function shortcutLabel(settings, key) {
+    const [accelerator] = settings.get_strv(key);
+    const [parsed, keyval, modifiers] = Gtk.accelerator_parse(accelerator ?? '');
+    return parsed && keyval ? Gtk.accelerator_get_label(keyval, modifiers) : '';
+}
+
 function connectSetting(settings, key, widget, callback) {
     const id = settings.connect(`changed::${key}`, callback);
     widget.connect('destroy', () => settings.disconnect(id));
@@ -161,8 +167,18 @@ export default class SpaceWallpaperPreferences extends ExtensionPreferences {
         objects.add(labels);
         objects.add(realTime);
         objects.add(comets);
-        const throwComets = switchRow(settings, 'click-throw', 'Throw comets',
-            'Click the empty desktop, or Super+Ctrl+click over desktop icons');
+        const throwComets = switchRow(settings, 'click-throw', 'Throw comets and meteorites');
+        const syncThrowHint = () => {
+            const shortcuts = [['throw-comet', 'a comet'], ['throw-meteorite', 'a meteorite']]
+                .map(([key, what]) => [shortcutLabel(settings, key), what])
+                .filter(([label]) => label)
+                .map(([label, what]) => `${label} for ${what}`);
+            throwComets.subtitle = shortcuts.length
+                ? `Click the empty desktop, or press ${shortcuts.join(' and ')} at the pointer`
+                : 'Click the empty desktop';
+        };
+        syncThrowHint();
+        ['throw-comet', 'throw-meteorite'].forEach(key => connectSetting(settings, key, throwComets, syncThrowHint));
         objects.add(throwComets);
         objects.add(events);
 

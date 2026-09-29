@@ -1,6 +1,7 @@
 import Clutter from 'gi://Clutter';
 import GLib from 'gi://GLib';
 import Meta from 'gi://Meta';
+import Shell from 'gi://Shell';
 
 import {Extension, InjectionManager} from 'resource:///org/gnome/shell/extensions/extension.js';
 import * as Background from 'resource:///org/gnome/shell/ui/background.js';
@@ -12,6 +13,7 @@ const MIN_SMOOTHING = 0.03;
 const MAX_SMOOTHING = 1.5;
 const ZOOM_PER_SCROLL = 0.1;
 const ZOOM_SAVE_DELAY = 400;
+const THROWN = ['comet', 'meteorite'];
 
 const radians = degrees => degrees * Math.PI / 180;
 const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
@@ -123,6 +125,8 @@ export default class SpaceWallpaperExtension extends Extension {
             'captured-event::button', (stage, event) => this._onClick(event),
             this);
         this._settings.connectObject('changed', (settings, key) => this._onSettingChanged(key), this);
+        this._shortcuts = false;
+        this._syncShortcuts();
         this._syncLock();
     }
 
@@ -131,6 +135,7 @@ export default class SpaceWallpaperExtension extends Extension {
         this._stopTimer();
         this._cancelZoomSave();
         global.stage.disconnectObject(this);
+        this._syncShortcuts(false);
         this._settings.disconnectObject(this);
         Main.layoutManager.disconnectObject(this);
         Main.sessionMode.disconnectObject(this);
@@ -202,6 +207,19 @@ export default class SpaceWallpaperExtension extends Extension {
         });
     }
 
+    _syncShortcuts(wanted = this._options.throwComets) {
+        if (wanted === this._shortcuts)
+            return;
+        this._shortcuts = wanted;
+        for (const kind of THROWN) {
+            if (wanted)
+                Main.wm.addKeybinding(`throw-${kind}`, this._settings, Meta.KeyBindingFlags.NONE,
+                    Shell.ActionMode.NORMAL, () => this._throwAtPointer(kind));
+            else
+                Main.wm.removeKeybinding(`throw-${kind}`);
+        }
+    }
+
     _onSettingChanged(key) {
         if (key === 'fps') {
             this._stopTimer();
@@ -216,6 +234,7 @@ export default class SpaceWallpaperExtension extends Extension {
         if (this._zoomSaveId || Math.round(zoom * 100) === Math.round(this._options.zoom * 100))
             this._options.zoom = zoom;
         this._contents.forEach(content => content.setOptions(this._options));
+        this._syncShortcuts();
     }
 
     _onScroll(event) {
@@ -253,16 +272,20 @@ export default class SpaceWallpaperExtension extends Extension {
     }
 
     _onClick(event) {
-        if (event.type() !== Clutter.EventType.BUTTON_PRESS || event.get_button() !== Clutter.BUTTON_PRIMARY ||
-            !this._options.throwComets || !canZoom())
-            return Clutter.EVENT_PROPAGATE;
-        const [x, y] = event.get_coords();
-        if (!isDesktopAt(x, y))
-            return Clutter.EVENT_PROPAGATE;
+        if (event.type() === Clutter.EventType.BUTTON_PRESS && event.get_button() === Clutter.BUTTON_PRIMARY &&
+            isDesktopAt(...event.get_coords()))
+            this._throwAtPointer('comet');
+        return Clutter.EVENT_PROPAGATE;
+    }
+
+    _throwAtPointer(kind) {
+        if (!this._options.throwComets || !canZoom())
+            return;
+        const [x, y] = global.get_pointer();
         const index = global.display.get_current_monitor();
         const monitor = Main.layoutManager.monitors[index];
-        this._contents[index]?.throwAt((x - monitor.x) / monitor.width, (y - monitor.y) / monitor.height);
-        return hasZoomModifiers(event) ? Clutter.EVENT_STOP : Clutter.EVENT_PROPAGATE;
+        if (monitor && !(this._options.pauseWhenCovered && isMonitorCovered(index)))
+            this._contents[index]?.throwAt((x - monitor.x) / monitor.width, (y - monitor.y) / monitor.height, kind);
     }
 
     _setZoom(value) {

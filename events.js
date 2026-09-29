@@ -15,6 +15,8 @@ const NEUTRON_DISK_INNER = 5.5;
 const NEUTRON_RADIUS = 2.5;
 const STAR_RADIUS = 5;
 const WORMHOLE_THROAT = 2.4;
+const PLANET_RADIUS = 3.2;
+const EARTH_RADIUS = 3;
 const ANGULAR_SPEED = 2 * Math.PI / 60;
 const MIN_SEPARATION = 2.6;
 const INSPIRAL_TIME = 75;
@@ -41,6 +43,14 @@ const RING_FADE = [4, 7.5];
 const THROW_CLEARANCE = 3;
 const THROW_TAIL = 2;
 const COMET_RETURN = 1.5;
+const COMET_HANDOFF = 0.3;
+const VIEW_DISTANCE = 22;
+const METEORITE_TRAIL = [3, 1.5];
+const IMPACT = {
+    comet: {flash: 0.5, disk: 0.6, beams: 1, jets: 0.8},
+    meteorite: {flash: 0.9, disk: 1, beams: 1.5, jets: 1.4},
+};
+const IMPACT_FLASH = {'star': 1, 'neutron-star': 1, 'planet': 0.5, 'earth': 0.5};
 const GALAXY_VIEWS = {
     spiral: {distance: 30, lift: 0.85},
     collision: {distance: 64, lift: 0.3},
@@ -151,8 +161,11 @@ function body(kind, position, scale, gain = kind === 'black-hole' ? 1 : 0, outer
     return {kind, position, scale, disk: disk(kind, outer, gain)};
 }
 
+const RADII = {'black-hole': BLACK_HOLE_SHADOW, 'neutron-star': NEUTRON_RADIUS, 'star': STAR_RADIUS,
+    'wormhole': WORMHOLE_THROAT, 'planet': PLANET_RADIUS, 'earth': EARTH_RADIUS};
+
 function radiusOf(kind, scale) {
-    return (kind === 'star' ? STAR_RADIUS : NEUTRON_RADIUS) * scale;
+    return RADII[kind] * scale;
 }
 
 function singleScenario(kind, events) {
@@ -171,7 +184,9 @@ export class Scene {
         this._planetAngles = SYSTEM_PLANETS.map(planet => planet.start);
         this._moonTime = 0;
         this._throw = null;
+        this._impact = null;
         this._cometReturn = -Infinity;
+        this._cometLeave = -Infinity;
         this._sky = null;
         if (mode === 'system')
             this._scenario = 'system';
@@ -196,10 +211,16 @@ export class Scene {
         this._sky = value;
     }
 
-    throwFrom(start) {
+    throwFrom(start, kind = 'comet') {
         if (this._throw || this._mode === 'galaxy')
             return;
-        this._throw = {start, age: 0};
+        this._throw = {start, kind, age: 0};
+        this._cometLeave = this._clock;
+    }
+
+    clearThrow() {
+        this._throw = null;
+        this._impact = null;
     }
 
     set spin(value) {
@@ -231,9 +252,15 @@ export class Scene {
             this._galaxy.advance(step);
         else if (this._scenario === 'spiral')
             this._galaxy.update(this._time);
+        if (this._impact) {
+            this._impact.since += realDt;
+            if (this._impact.since > IMPACT_TIME)
+                this._impact = null;
+        }
         if (this._throw) {
             this._throw.age += realDt;
-            if (this._throw.age > FALL_TIME + IMPACT_TIME) {
+            if (this._throw.age >= FALL_TIME) {
+                this._impact = {kind: this._throw.kind, since: this._throw.age - FALL_TIME};
                 this._throw = null;
                 this._cometReturn = this._clock;
             }
@@ -265,6 +292,8 @@ export class Scene {
             comet: [0, 0, 0, 0],
             cometIon: [1, 0, 0, 1],
             cometDust: [1, 0, 0, 1],
+            cometStyle: 0,
+            impact: [0, 0, 0, 0],
             meteors: this._comets ? 1 : 0,
             lightColor: [1, 1, 1],
             planets: new Array(32).fill(0),
@@ -328,6 +357,7 @@ export class Scene {
             state.fade = fadeIn * (1 - smooth(duration - FADE_TIME, duration, this._time));
         }
         this._thrown(state);
+        this._impacted(state);
         return state;
     }
 
@@ -434,7 +464,8 @@ export class Scene {
     }
 
     _comet(state) {
-        if (!this._comets || this._mode === 'galaxy' || this._throw)
+        const leaving = this._throw ? this._clock - this._cometLeave : 0;
+        if (!this._comets || this._mode === 'galaxy' || leaving > COMET_HANDOFF)
             return;
         const cycle = Math.floor(this._clock / COMET_PERIOD);
         const progress = (this._clock - cycle * COMET_PERIOD) / COMET_DURATION;
@@ -442,10 +473,11 @@ export class Scene {
             return;
 
         const side = random(cycle, 1) < 0.5 ? -1 : 1;
-        const lift = (random(cycle, 2) < 0.5 ? -1 : 1) * (COMET_CLEARANCE + 3 * random(cycle, 3));
-        const depth = -2 - 8 * random(cycle, 4);
-        const start = [side * COMET_REACH, lift, depth];
-        const end = [-side * COMET_REACH, lift * (0.7 + 0.3 * random(cycle, 5)), depth + (random(cycle, 6) - 0.5) * 6];
+        const scale = Math.max(1, state.distance / VIEW_DISTANCE);
+        const lift = (random(cycle, 2) < 0.5 ? -1 : 1) * (COMET_CLEARANCE + 3 * random(cycle, 3)) * scale;
+        const depth = (-2 - 8 * random(cycle, 4)) * scale;
+        const start = [side * COMET_REACH * scale, lift, depth];
+        const end = [-side * COMET_REACH * scale, lift * (0.7 + 0.3 * random(cycle, 5)), depth + (random(cycle, 6) - 0.5) * 6 * scale];
         const position = start.map((v, i) => mix(v, end[i], progress));
         const heading = normalize(end.map((v, i) => v - start[i]));
         const ion = state.light[3] > 0.5
@@ -453,47 +485,67 @@ export class Scene {
             : normalize(state.light.slice(0, 3).map(v => -v));
         const dust = normalize(ion.map((v, i) => 0.7 * v - 0.5 * heading[i]));
         state.comet = [...position, smooth(0, 0.1, progress) * (1 - smooth(0.9, 1, progress))
-            * smooth(0, COMET_RETURN, this._clock - this._cometReturn)];
+            * smooth(0, COMET_RETURN, this._clock - this._cometReturn) * (1 - smooth(0, COMET_HANDOFF, leaving))];
         state.cometIon = [...ion, 12];
         state.cometDust = [...dust, 8];
+    }
+
+    _target(bodies) {
+        return bodies.find(body => body.kind === 'black-hole') ??
+            bodies.find(body => body.kind === 'neutron-star' && body.scale > 0) ?? bodies[0];
     }
 
     _thrown(state) {
         if (!this._throw)
             return;
-        const {age} = this._throw;
-        const [first] = state.bodies;
+        const {age, kind} = this._throw;
+        if (age < COMET_HANDOFF && state.comet[3] > 0)
+            return;
+        const first = this._target(state.bodies);
         const target = first?.position ?? [0, 0, 0];
-        const clearance = THROW_CLEARANCE * (first ? radiusOf(first.kind, first.scale) : 1);
+        const radius = first ? radiusOf(first.kind, first.scale) : 0;
+        const clearance = THROW_CLEARANCE * (first ? radius : 1);
         const away = this._throw.start.map((v, i) => v - target[i]);
         const reach = Math.hypot(...away);
         const direction = reach > 1e-6 ? away.map(v => v / reach) : [0, 1, 0];
         const start = target.map((v, i) => v + direction[i] * Math.max(reach, clearance));
-        if (age < FALL_TIME) {
-            const fall = (age / FALL_TIME) ** 2;
-            const position = start.map((v, i) => mix(v, target[i], fall));
-            const heading = direction.map(v => -v);
-            const ion = state.light[3] > 0.5
-                ? normalize(position.map((v, i) => v - state.light[i] + 1e-3))
-                : normalize(state.light.slice(0, 3).map(v => -v));
-            state.comet = [...position, smooth(0, 0.3, age)];
-            state.cometIon = [...ion, 8];
-            state.cometDust = [...normalize(ion.map((v, i) => 0.6 * v - 0.6 * heading[i] + 1e-3)), 5];
+        const surface = target.map((v, i) => v + direction[i] * radius);
+        const fall = (age / FALL_TIME) ** 2;
+        const position = start.map((v, i) => mix(v, surface[i], fall));
+        const fadeIn = smooth(COMET_HANDOFF, 2 * COMET_HANDOFF, age);
+        if (kind === 'meteorite') {
+            const [trail, sparks] = METEORITE_TRAIL;
+            state.cometStyle = 1;
+            state.comet = [...position, fadeIn * (0.5 + fall)];
+            state.cometIon = [...direction, trail];
+            state.cometDust = [...direction, sparks];
             return;
         }
-        if (!first || first.kind === 'wormhole')
+        const ion = state.light[3] > 0.5
+            ? normalize(position.map((v, i) => v - state.light[i] + 1e-3))
+            : normalize(state.light.slice(0, 3).map(v => -v));
+        state.comet = [...position, fadeIn];
+        state.cometIon = [...ion, 8];
+        state.cometDust = [...normalize(ion.map((v, i) => 0.6 * v + 0.6 * direction[i] + 1e-3)), 5];
+    }
+
+    _impacted(state) {
+        const first = this._target(state.bodies);
+        if (!this._impact || !first || first.kind === 'wormhole')
             return;
-        const since = age - FALL_TIME;
+        const {kind, since} = this._impact;
+        const impact = IMPACT[kind];
         const tail = 1 - smooth(IMPACT_TIME - THROW_TAIL, IMPACT_TIME, since);
-        if (Math.hypot(...target) < 1) {
-            state.flash = Math.max(state.flash, 1.2 * decay(since, 0.6));
-            if (state.burst[2] === 0)
-                state.burst = [radiusOf(first.kind, first.scale) + 10 * since, 1 + 0.6 * since, 0.4 * decay(since, 2) * tail, 0];
+        const flash = IMPACT_FLASH[first.kind] ?? 0;
+        if (flash)
+            state.impact = [...first.position, flash * impact.flash * decay(since, 0.6)];
+        if (first.kind === 'black-hole') {
+            first.disk[2] *= 1 + impact.disk * decay(since, 2.5) * tail;
+            if (state.jets[3] === 0)
+                state.jets = [...first.position, impact.jets * smooth(0, 0.5, since) * decay(since, 2.5) * tail];
+        } else if (first.kind === 'neutron-star') {
+            state.beams += impact.beams * decay(since, 3) * tail;
         }
-        if (first.kind === 'black-hole')
-            first.disk[2] *= 1 + 1.5 * decay(since, 2.5) * tail;
-        else if (first.kind === 'neutron-star')
-            state.beams += 2 * decay(since, 3) * tail;
     }
 
     _planetaryNebula(state) {

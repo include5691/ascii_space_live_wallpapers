@@ -27,8 +27,6 @@ uniform vec4 u_light;
 uniform vec4 u_comet;
 uniform vec4 u_comet_ion;
 uniform vec4 u_comet_dust;
-uniform float u_comet_style;
-uniform vec4 u_impact;
 uniform float u_meteors;
 uniform sampler2D earth_map;
 uniform vec3 u_light_color;
@@ -844,24 +842,19 @@ vec3 cometGlow(vec3 p, float footprint) {
     if (dist2 > square(max(u_comet_ion.w, u_comet_dust.w) + 1.0))
         return vec3(0.0);
 
-    bool meteorite = u_comet_style > 0.5;
-    vec3 glow = (meteorite ? vec3(1.0, 0.78, 0.5) : vec3(0.75, 0.88, 1.0))
-        * (exp(-dist2 / core) * 1.5 * sqrt(COMET_CORE / core) + exp(-dist2 / 0.25) * 0.08);
+    vec3 glow = vec3(0.75, 0.88, 1.0) * (exp(-dist2 / core) * 1.5 * sqrt(COMET_CORE / core) + exp(-dist2 / 0.25) * 0.08);
     if (ion > 0.0) {
-        float width = max(meteorite ? 0.08 + 0.05 * ion : 0.1 + 0.03 * ion, footprint);
+        float width = max(0.1 + 0.03 * ion, footprint);
         float perp = length(q - ion * u_comet_ion.xyz) / width;
-        vec3 tint = meteorite ? mix(vec3(1.0, 0.8, 0.5), vec3(1.0, 0.3, 0.1), clamp(ion / u_comet_ion.w, 0.0, 1.0))
-            : vec3(0.45, 0.65, 1.0);
         if (perp < 3.0)
-            glow += tint * exp(-perp * perp) * exp(-ion / u_comet_ion.w * 2.5) * (meteorite ? 1.0 : 0.7)
+            glow += vec3(0.45, 0.65, 1.0) * exp(-perp * perp) * exp(-ion / u_comet_ion.w * 2.5) * 0.7
                 * (1.0 - smoothstep(0.6 * u_comet_ion.w, u_comet_ion.w + 1.0, ion));
     }
     if (dust > 0.0) {
-        float width = max(meteorite ? 0.12 + 0.1 * dust : 0.12 + 0.08 * dust, footprint);
+        float width = max(0.12 + 0.08 * dust, footprint);
         float perp = length(q - dust * u_comet_dust.xyz) / width;
         if (perp < 3.0)
-            glow += (meteorite ? vec3(1.0, 0.5, 0.2) : vec3(1.0, 0.88, 0.65)) * exp(-perp * perp)
-                * exp(-dust / u_comet_dust.w * 2.0) * (meteorite ? 0.3 : 0.35)
+            glow += vec3(1.0, 0.88, 0.65) * exp(-perp * perp) * exp(-dust / u_comet_dust.w * 2.0) * 0.35
                 * (1.0 - smoothstep(0.6 * u_comet_dust.w, u_comet_dust.w + 1.0, dust));
     }
     return glow * u_comet.w;
@@ -931,7 +924,6 @@ vec4 renderPixel(vec2 st) {
     vec3 color = vec3(0.0);
     float transmittance = 1.0;
     float nearOrigin = 1e6;
-    float nearImpact = 1e6;
     bool captured = false;
     float capturedBy = -1.0;
     bool centerInFront = false;
@@ -1084,8 +1076,6 @@ vec4 renderPixel(vec2 st) {
 
         pos = next;
         nearOrigin = min(nearOrigin, length(pos));
-        if (u_impact.w > 0.0)
-            nearImpact = min(nearImpact, length(pos - u_impact.xyz));
         for (int i = 0; i < 2; i++) {
             if (float(i) >= u_count)
                 break;
@@ -1188,7 +1178,6 @@ vec4 renderPixel(vec2 st) {
         color += stars * stars * GALAXY_RANGE;
     }
     color += u_flash * exp(-nearOrigin / 2.0) * vec3(1.0, 0.95, 0.9) * 1.5;
-    color += u_impact.w * exp(-nearImpact / 2.0) * vec3(1.0, 0.95, 0.9) * 1.5;
     color *= u_fade;
     color = vec3(1.0) - exp(-color * u_exposure);
     color = pow(color, vec3(1.0 / 2.2));

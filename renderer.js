@@ -31,7 +31,7 @@ const SCENE_UNIFORMS = [
     'u_resolution', 'u_camera', 'u_fov', 'u_flow', 'u_time', 'u_exposure', 'u_doppler',
     'u_bodies', 'u_disks', 'u_kinds', 'u_count', 'u_gw', 'u_burst', 'u_stream', 'u_stream_center',
     'u_tidal', 'u_jets', 'u_kilonova', 'u_flash', 'u_fade', 'u_beams', 'u_background', 'u_star',
-    'u_spins', 'u_light', 'u_comet', 'u_comet_ion', 'u_comet_dust', 'u_comet_style', 'u_impact', 'u_meteors',
+    'u_spins', 'u_light', 'u_comet', 'u_comet_ion', 'u_comet_dust', 'u_meteors',
     'earth_map', 'u_light_color', 'u_planets', 'u_system', 'u_belt', 'u_distance',
     'u_live', 'u_moon_tilt', 'u_moons', 'u_moon_hosts', 'u_magnetar', 'u_quasar', 'galaxy_map', 'u_galaxy',
 ];
@@ -154,13 +154,6 @@ function lensed(spot, center, mass, fov, aspect) {
     return {...spot, x: center.x + dx / (2 * aspect), y: center.y - dy / 2};
 }
 
-function unproject({fov, aspect, distance, ...camera}, x, y) {
-    const {origin, forward, rolledRight, rolledUp} = cameraBasis({distance, ...camera});
-    const direction = forward.map((v, i) =>
-        v + ((x - 0.5) * 2 * aspect * rolledRight[i] + (0.5 - y) * 2 * rolledUp[i]) * fov);
-    return origin.map((v, i) => v + direction[i] * distance / dot(direction, forward));
-}
-
 function splatParticles({count, positions, colors}, camera, {columns, rows, aspect}, light) {
     const {origin, forward, rolledRight, rolledUp} = cameraBasis(camera);
     const {fov} = camera;
@@ -237,15 +230,6 @@ export const SpaceContent = GObject.registerClass({
         this._view = null;
     }
 
-    throwAt(x, y, kind) {
-        if (!this._view || this._locked)
-            return;
-        const {pixelWidth, pixelHeight, originX, originY, gridWidth, gridHeight} = this._grid;
-        this._scene.throwFrom(unproject(this._view,
-            (x * pixelWidth + originX) / gridWidth, (y * pixelHeight + originY) / gridHeight), kind);
-        this.advance();
-    }
-
     setMonitor(monitor, scale) {
         this._monitor = monitor;
         this._scale = scale;
@@ -254,10 +238,8 @@ export const SpaceContent = GObject.registerClass({
 
     setLocked(locked) {
         this._locked = locked;
-        if (locked) {
+        if (locked)
             this._camera = null;
-            this._scene.clearThrow();
-        }
         this.advance();
     }
 
@@ -364,7 +346,6 @@ export const SpaceContent = GObject.registerClass({
 
         this._grid = {
             columns, rows, aspect: (columns * cellWidth) / (rows * cellHeight),
-            pixelWidth: width, pixelHeight: height, gridWidth: columns * cellWidth, gridHeight: rows * cellHeight,
             originX: Math.floor((columns * cellWidth - width) / 2), originY: Math.floor((rows * cellHeight - height) / 2),
         };
         const scene = this._scenePipeline;
@@ -441,14 +422,13 @@ export const SpaceContent = GObject.registerClass({
             ['u_stream_center', scene.streamCenter], ['u_tidal', scene.tidal], ['u_jets', scene.jets],
             ['u_kilonova', scene.kilonova], ['u_star', scene.star], ['u_light', scene.light],
             ['u_comet', scene.comet], ['u_comet_ion', scene.cometIon], ['u_comet_dust', scene.cometDust],
-            ['u_live', scene.live], ['u_magnetar', scene.magnetar], ['u_impact', scene.impact],
+            ['u_live', scene.live], ['u_magnetar', scene.magnetar],
         ])
             pipeline.set_uniform_float(uniforms[name], 4, 1, value);
         pipeline.set_uniform_1f(uniforms.u_flash, scene.flash);
         pipeline.set_uniform_1f(uniforms.u_fade, scene.fade);
         pipeline.set_uniform_1f(uniforms.u_beams, scene.beams);
         pipeline.set_uniform_1f(uniforms.u_meteors, scene.meteors);
-        pipeline.set_uniform_1f(uniforms.u_comet_style, scene.cometStyle);
         pipeline.set_uniform_1f(uniforms.u_background, BACKGROUNDS[options.background] ?? 0);
         pipeline.set_uniform_float(uniforms.u_moons, 4, 6, scene.moons);
         pipeline.set_uniform_float(uniforms.u_moon_hosts, 1, 6, scene.moonHosts);

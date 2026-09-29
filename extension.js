@@ -1,7 +1,6 @@
 import Clutter from 'gi://Clutter';
 import GLib from 'gi://GLib';
 import Meta from 'gi://Meta';
-import Shell from 'gi://Shell';
 
 import {Extension, InjectionManager} from 'resource:///org/gnome/shell/extensions/extension.js';
 import * as Background from 'resource:///org/gnome/shell/ui/background.js';
@@ -13,7 +12,6 @@ const MIN_SMOOTHING = 0.03;
 const MAX_SMOOTHING = 1.5;
 const ZOOM_PER_SCROLL = 0.1;
 const ZOOM_SAVE_DELAY = 400;
-const THROWN = ['comet', 'meteorite'];
 
 const radians = degrees => degrees * Math.PI / 180;
 const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
@@ -31,7 +29,6 @@ function readOptions(settings) {
             galaxy: [settings.get_string('galaxy')],
         }[mode] ?? [first],
         realTime: settings.get_boolean('real-time'),
-        throwComets: settings.get_boolean('click-throw'),
         orbitSpeed: settings.get_uint('orbit-speed') / 100,
         events: settings.get_boolean('events'),
         background: settings.get_string('background'),
@@ -122,11 +119,8 @@ export default class SpaceWallpaperExtension extends Extension {
         global.stage.connectObject(
             'captured-event::scroll', (stage, event) => this._onScroll(event),
             'captured-event::touchpad', (stage, event) => this._onPinch(event),
-            'captured-event::button', (stage, event) => this._onClick(event),
             this);
         this._settings.connectObject('changed', (settings, key) => this._onSettingChanged(key), this);
-        this._shortcuts = false;
-        this._syncShortcuts();
         this._syncLock();
     }
 
@@ -135,7 +129,6 @@ export default class SpaceWallpaperExtension extends Extension {
         this._stopTimer();
         this._cancelZoomSave();
         global.stage.disconnectObject(this);
-        this._syncShortcuts(false);
         this._settings.disconnectObject(this);
         Main.layoutManager.disconnectObject(this);
         Main.sessionMode.disconnectObject(this);
@@ -207,19 +200,6 @@ export default class SpaceWallpaperExtension extends Extension {
         });
     }
 
-    _syncShortcuts(wanted = this._options.throwComets) {
-        if (wanted === this._shortcuts)
-            return;
-        this._shortcuts = wanted;
-        for (const kind of THROWN) {
-            if (wanted)
-                Main.wm.addKeybinding(`throw-${kind}`, this._settings, Meta.KeyBindingFlags.NONE,
-                    Shell.ActionMode.NORMAL, () => this._throwAtPointer(kind));
-            else
-                Main.wm.removeKeybinding(`throw-${kind}`);
-        }
-    }
-
     _onSettingChanged(key) {
         if (key === 'fps') {
             this._stopTimer();
@@ -234,7 +214,6 @@ export default class SpaceWallpaperExtension extends Extension {
         if (this._zoomSaveId || Math.round(zoom * 100) === Math.round(this._options.zoom * 100))
             this._options.zoom = zoom;
         this._contents.forEach(content => content.setOptions(this._options));
-        this._syncShortcuts();
     }
 
     _onScroll(event) {
@@ -269,23 +248,6 @@ export default class SpaceWallpaperExtension extends Extension {
             this._pinchStartZoom = 0;
         }
         return Clutter.EVENT_PROPAGATE;
-    }
-
-    _onClick(event) {
-        if (event.type() === Clutter.EventType.BUTTON_PRESS && event.get_button() === Clutter.BUTTON_PRIMARY &&
-            isDesktopAt(...event.get_coords()))
-            this._throwAtPointer('comet');
-        return Clutter.EVENT_PROPAGATE;
-    }
-
-    _throwAtPointer(kind) {
-        if (!this._options.throwComets || !canZoom())
-            return;
-        const [x, y] = global.get_pointer();
-        const index = global.display.get_current_monitor();
-        const monitor = Main.layoutManager.monitors[index];
-        if (monitor && !(this._options.pauseWhenCovered && isMonitorCovered(index)))
-            this._contents[index]?.throwAt((x - monitor.x) / monitor.width, (y - monitor.y) / monitor.height, kind);
     }
 
     _setZoom(value) {

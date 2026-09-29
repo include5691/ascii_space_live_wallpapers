@@ -4,12 +4,11 @@ import Gtk from 'gi://Gtk';
 
 import {ExtensionPreferences} from 'resource:///org/gnome/Shell/Extensions/js/extensions/prefs.js';
 
-import {PAIR_STAND_INS} from './events.js';
+import {PAIR_STAND_INS, selectedScene} from './events.js';
 
 const MODES = [
     ['single', 'Single'],
     ['pair', 'Pair'],
-    ['system', 'Solar system'],
     ['galaxy', 'Deep sky'],
 ];
 
@@ -30,6 +29,7 @@ const GALAXIES = [
     ['cluster', 'Star cluster'],
     ['bigbang', 'Big Bang'],
     ['birth', 'Solar system birth'],
+    ['system', 'Solar system'],
 ];
 
 const CENTERS = [
@@ -48,19 +48,6 @@ const EVENT_PAIRS = new Set([
     'black-hole+earth',
     'black-hole+planet',
 ]);
-
-function selectedObjects(settings) {
-    const first = settings.get_string('first-object');
-    return {
-        pair: [PAIR_STAND_INS[first] ?? first, settings.get_string('second-object')],
-        system: [settings.get_string('center')],
-        galaxy: [],
-    }[settings.get_string('mode')] ?? [first];
-}
-
-function isSystem(settings) {
-    return settings.get_string('mode') === 'system';
-}
 
 function hasEvents(objects, system = false) {
     if (system)
@@ -158,8 +145,8 @@ export default class SpaceWallpaperPreferences extends ExtensionPreferences {
             "Earth's day and night, the Moon's phase and the planets follow the real clock");
         objects.add(singleObject);
         objects.add(firstObject);
-        objects.add(center);
         objects.add(galaxy);
+        objects.add(center);
         objects.add(secondObject);
         objects.add(orbitSpeed);
         const spin = spinRow(settings, 'spin', 'Black hole spin', 'Percent of the maximum; drags space and squashes the shadow');
@@ -206,10 +193,10 @@ export default class SpaceWallpaperPreferences extends ExtensionPreferences {
         scene.add(doppler);
 
         const syncObjectRows = () => {
-            const selected = selectedObjects(settings);
+            const {mode: scene, objects: selected} = selectedScene(settings);
             const pair = selected.length === 2;
             const mode = settings.get_string('mode');
-            const system = isSystem(settings);
+            const system = scene === 'system';
             const galaxyObject = mode === 'galaxy' ? settings.get_string('galaxy') : null;
             background.set_sensitive(galaxyObject !== 'bigbang');
             const eventsOn = settings.get_boolean('events') && !system;

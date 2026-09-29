@@ -81,6 +81,21 @@ const SCENARIO_FEATURES = {
 };
 export const PAIR_STAND_INS = {'quasar': 'black-hole', 'dyson': 'star', 'crab': 'neutron-star'};
 
+export function selectedScene(settings) {
+    const mode = settings.get_string('mode');
+    const first = settings.get_string('first-object');
+    const galaxy = settings.get_string('galaxy');
+    if (mode === 'galaxy' && galaxy === 'system')
+        return {mode: 'system', objects: [settings.get_string('center')]};
+    return {
+        mode,
+        objects: {
+            pair: [PAIR_STAND_INS[first] ?? first, settings.get_string('second-object')],
+            galaxy: [galaxy],
+        }[mode] ?? [first],
+    };
+}
+
 export const KINDS = {'black-hole': 0, 'neutron-star': 1, 'star': 2, 'wormhole': 3, 'planet': 4, 'earth': 5};
 
 const MASS = {'black-hole': 1, 'neutron-star': 1, 'star': 0.5, 'wormhole': 1, 'planet': 0.4, 'earth': 0.4};

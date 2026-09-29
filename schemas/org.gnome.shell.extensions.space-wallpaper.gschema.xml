@@ -5,11 +5,10 @@
       <choices>
         <choice value="single"/>
         <choice value="pair"/>
-        <choice value="system"/>
         <choice value="galaxy"/>
       </choices>
       <default>'single'</default>
-      <summary>Show one object, a pair orbiting each other, a solar system or a galaxy</summary>
+      <summary>Show one object, a pair orbiting each other, or a deep sky scene</summary>
     </key>
     <key name="first-object" type="s">
       <choices>
@@ -46,7 +45,7 @@
         <choice value="wormhole"/>
       </choices>
       <default>'star'</default>
-      <summary>The object in the center of the solar system</summary>
+      <summary>The object in the center of the deep sky solar system</summary>
     </key>
     <key name="galaxy" type="s">
       <choices>
@@ -55,9 +54,10 @@
         <choice value="cluster"/>
         <choice value="bigbang"/>
         <choice value="birth"/>
+        <choice value="system"/>
       </choices>
       <default>'spiral'</default>
-      <summary>Show a spiral galaxy, two galaxies colliding, a globular star cluster, the history of the universe from the Big Bang, or the birth of the solar system</summary>
+      <summary>Show a spiral galaxy, two galaxies colliding, a globular star cluster, the history of the universe from the Big Bang, the birth of the solar system, or the solar system</summary>
     </key>
     <key name="real-time" type="b">
       <default>false</default>

@@ -22,17 +22,17 @@ Light rays bend around the black hole, so the far side of the disk shows up abov
   - a quasar, shown alone: a giant black hole with a hot blue-white disk, jets with bright knots far longer than the disk, and a faint host galaxy;
   - a Dyson swarm, shown alone: a Sun-like star circled by six tilted rings of solar collectors. Their sunlit faces glint on the far side, their dark backs cross the star's face, and a few panels are still missing;
   - the Crab Nebula, shown alone: a pulsar inside a blue synchrotron glow with red and yellow filaments, a bright inner ring, polar jets and ripples that run outward.
-- A solar system mode: eight planets with their own looks, faint orbit lines, an asteroid belt and Saturn's rings. The Moon circles Earth, four moons circle Jupiter and Titan circles Saturn. Their shadows cross the planets, and they go dark in the planets' shadows. The center is any object you pick: the Sun, a black hole, a neutron star or a wormhole. The center lights everything; a black hole, neutron star or wormhole also bends the light. Planet names can be shown in the same pixel font.
-- With Cosmic events on, the solar system reacts to its center:
-  - a black hole pulls the planets in one by one and tears each planet and its moons into a cloud of fragments. The fragments swirl around it, heat up, feed its disk or fly away, then the system starts again;
-  - a wormhole is lighter than the Sun, so the planets escape on real gravity paths and fly apart into space, then the system starts again;
-  - a neutron star is heavier than the Sun, so the planets keep orbiting, but its pulsar wind blows glowing tails off every planet.
 - A deep sky mode:
   - a spiral galaxy with a yellow bulge, blue trailing arms and pink star-forming knots, turning slowly;
   - two spiral galaxies colliding: a real gravity simulation of thousands of stars. They swing past each other, throw out long tidal tails, fall back and merge, then it starts again;
   - a globular star cluster: 16,000 old stars packed into a bright core, with orange giants and blue stragglers, slowly orbiting;
   - the Big Bang: the history of the universe in 3 minutes. A tiny point flashes, space inflates into white-hot plasma that churns and cools to red, the fog clears into the cosmic microwave background, the dark ages pass, the first stars ignite, thousands of galaxies gather into the filaments of the cosmic web, and the camera settles on a spiral galaxy under today's stars. Then it starts again;
-  - the birth of the solar system, 4.6 billion years ago, in 3 minutes. A massive sibling star explodes and its shock wave squeezes a cold, dark cloud of gas and dust and seeds it with radioactive aluminium-26. The cloud collapses from the inside out, spins up and flattens into a disk around a hidden orange protostar that fires jets from its poles and carves cavities in the cloud. Dust settles into rock inside the frost line and ice outside it, and the frost line creeps inward as the disk cools. Jupiter forms first and clears a gap, then Saturn, Uranus and Neptune; Mars is done early. The young Sun's X-ray and UV light boil the outer gas away while the inner gas falls onto the Sun, which shrinks and settles into steady hydrogen burning. Mercury, Venus and Earth grow from colliding rocks, Theia hits the young Earth and the debris forms the Moon, and the leftovers stay as the asteroid and Kuiper belts. Then it starts again.
+  - the birth of the solar system, 4.6 billion years ago, in 3 minutes. A massive sibling star explodes and its shock wave squeezes a cold, dark cloud of gas and dust and seeds it with radioactive aluminium-26. The cloud collapses from the inside out, spins up and flattens into a disk around a hidden orange protostar that fires jets from its poles and carves cavities in the cloud. Dust settles into rock inside the frost line and ice outside it, and the frost line creeps inward as the disk cools. Jupiter forms first and clears a gap, then Saturn, Uranus and Neptune; Mars is done early. The young Sun's X-ray and UV light boil the outer gas away while the inner gas falls onto the Sun, which shrinks and settles into steady hydrogen burning. Mercury, Venus and Earth grow from colliding rocks, Theia hits the young Earth and the debris forms the Moon, and the leftovers stay as the asteroid and Kuiper belts. Then it starts again;
+  - the solar system: eight planets with their own looks, faint orbit lines, an asteroid belt and Saturn's rings. The Moon circles Earth, four moons circle Jupiter and Titan circles Saturn. Their shadows cross the planets, and they go dark in the planets' shadows. The center is any object you pick: the Sun, a black hole, a neutron star or a wormhole. The center lights everything; a black hole, neutron star or wormhole also bends the light. Planet names can be shown in the same pixel font.
+    - with Cosmic events on, the solar system reacts to its center:
+      - a black hole pulls the planets in one by one and tears each planet and its moons into a cloud of fragments. The fragments swirl around it, heat up, feed its disk or fly away, then the system starts again;
+      - a wormhole is lighter than the Sun, so the planets escape on real gravity paths and fly apart into space, then the system starts again;
+      - a neutron star is heavier than the Sun, so the planets keep orbiting, but its pulsar wind blows glowing tails off every planet.
 - Real time: Earth's day and night follow the real clock and season, the Moon shows today's phase, and the solar system planets sit where they really are today.
 - Three skies: the Milky Way, a glowing band with dust lanes and a bright core; a pink and teal emission nebula with dark dust; or plain stars. All are bent by every black hole, neutron star and wormhole.
 - A single star lives out one of two real fates, taking turns:
@@ -97,13 +97,13 @@ gnome-extensions prefs space-wallpaper@include5691.github.io
 
 | Setting | Default | Range |
 | --- | --- | --- |
-| Mode | single | single, pair, solar system, deep sky |
+| Mode | single | single, pair, deep sky |
 | Black hole spin | 60 % | 0 – 99 |
 | Object (single) | black hole | black hole, neutron star, star, wormhole, ringed planet, Earth, quasar, Dyson swarm, Crab Nebula |
 | First object (pair) | black hole | black hole, neutron star, star, wormhole, ringed planet, Earth |
 | Second object (pair) | black hole | black hole, neutron star, star, wormhole, ringed planet, Earth |
-| Center (solar system) | Sun | Sun, black hole, neutron star, wormhole |
-| Object (deep sky) | spiral galaxy | spiral galaxy, galaxy collision, star cluster, Big Bang, solar system birth |
+| Center (deep sky solar system) | Sun | Sun, black hole, neutron star, wormhole |
+| Object (deep sky) | spiral galaxy | spiral galaxy, galaxy collision, star cluster, Big Bang, solar system birth, solar system |
 | Planet names (solar system) | off | |
 | Real time (Earth, solar system) | off | |
 | Speed | 100 % | 0 – 400, orbits and cosmic events |

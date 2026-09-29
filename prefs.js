@@ -29,6 +29,7 @@ const GALAXIES = [
     ['collision', 'Galaxy collision'],
     ['cluster', 'Star cluster'],
     ['bigbang', 'Big Bang'],
+    ['birth', 'Solar system birth'],
 ];
 
 const CENTERS = [
@@ -208,14 +209,15 @@ export default class SpaceWallpaperPreferences extends ExtensionPreferences {
             const pair = selected.length === 2;
             const mode = settings.get_string('mode');
             const system = isSystem(settings);
-            background.set_sensitive(mode !== 'galaxy' || settings.get_string('galaxy') !== 'bigbang');
+            const galaxyObject = mode === 'galaxy' ? settings.get_string('galaxy') : null;
+            background.set_sensitive(galaxyObject !== 'bigbang');
             const eventsOn = settings.get_boolean('events') && !system;
             singleObject.set_visible(mode === 'single');
             firstObject.set_visible(mode === 'pair');
             center.set_visible(system);
             galaxy.set_visible(mode === 'galaxy');
             secondObject.set_visible(mode === 'pair');
-            labels.set_sensitive(system);
+            labels.set_sensitive(system || galaxyObject === 'birth');
             realTime.set_sensitive(system || selected.includes('earth'));
             orbitSpeed.set_sensitive(pair || system || mode === 'galaxy' || (eventsOn && hasEvents(selected)));
             spin.set_sensitive(hasBlackHole(selected, eventsOn));

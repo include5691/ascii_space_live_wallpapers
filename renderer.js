@@ -33,7 +33,7 @@ const SCENE_UNIFORMS = [
     'u_tidal', 'u_jets', 'u_kilonova', 'u_flash', 'u_fade', 'u_beams', 'u_background', 'u_star',
     'u_spins', 'u_light',
     'earth_map', 'u_light_color', 'u_planets', 'u_belt', 'u_orbits', 'u_distance',
-    'u_live', 'u_moon_tilt', 'u_moon_keep', 'u_big_bang', 'u_big_bang_clock', 'u_moons', 'u_moon_hosts', 'u_magnetar', 'u_quasar', 'galaxy_map',
+    'u_live', 'u_moon_tilt', 'u_moon_keep', 'u_big_bang', 'u_big_bang_clock', 'u_birth', 'u_birth_glow', 'u_moons', 'u_moon_hosts', 'u_magnetar', 'u_quasar', 'galaxy_map',
 ];
 const ASCII_UNIFORMS = ['scene', 'u_output', 'u_cells', 'u_origin', 'u_font', 'u_labels', 'u_label_text'];
 const LETTERS = 'ACEHIJMNPRSTUVY';
@@ -450,6 +450,7 @@ export const SpaceContent = GObject.registerClass({
             ['u_kilonova', scene.kilonova], ['u_star', scene.star], ['u_light', scene.light],
             ['u_live', scene.live], ['u_magnetar', scene.magnetar],
             ['u_big_bang', scene.bigBang], ['u_big_bang_clock', scene.bigBangClock],
+            ['u_birth', scene.birth], ['u_birth_glow', scene.birthGlow],
         ])
             pipeline.set_uniform_float(uniforms[name], 4, 1, value);
         pipeline.set_uniform_1f(uniforms.u_flash, scene.flash);
@@ -547,7 +548,7 @@ export const SpaceContent = GObject.registerClass({
                 if (row === undefined || column < 1)
                     continue;
                 placed.push({row, start: column, end: column + name.length});
-                labels.splice(index * 4, 4, column, row, name.length, 0.9 * scene.fade);
+                labels.splice(index * 4, 4, column, row, name.length, 0.9 * scene.fade * scene.system);
                 [...name].forEach((letter, slot) => {
                     text[index * 8 + slot] = LETTERS.indexOf(letter) + 1;
                 });

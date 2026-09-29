@@ -38,6 +38,8 @@ uniform float u_moon_tilt;
 uniform float u_moon_keep;
 uniform vec4 u_big_bang;
 uniform vec4 u_big_bang_clock;
+uniform vec4 u_birth;
+uniform vec4 u_birth_glow;
 uniform vec4 u_moons[6];
 uniform float u_moon_hosts[6];
 uniform vec4 u_magnetar;
@@ -78,6 +80,9 @@ const vec3 CRAB_SQUASH = vec3(1.0, 0.8, 0.72);
 const vec3 CRAB_AXIS = vec3(0.0, 1.0, 0.0);
 const float GALAXY_RANGE = 4.0;
 const float PLASMA_DETAIL = 0.35;
+const vec3 SUPERNOVA_POSITION = vec3(-100.0, 30.0, -110.0);
+const float SHOCK_WIDTH = 6.0;
+const float ENVELOPE_OPACITY = 1.6;
 const float WIND_REACH = 16.0;
 const float WIND_DISTANCE = 8.0;
 const float WIND_GAIN = 0.3;
@@ -350,6 +355,45 @@ vec3 earlyUniverse(vec3 d, vec2 sky, float face, vec2 du, vec2 dv, float cellAng
     return color;
 }
 
+vec3 protoCloud(vec3 color, vec3 origin, vec3 dir) {
+    float along = -dot(origin, dir);
+    vec3 closest = origin + dir * along;
+    float chord = sqrt(max(square(u_birth.y) - dot(closest, closest), 0.0)) / u_birth.y;
+    float cone = smoothstep(0.6, 0.9, abs(closest.y) / (length(closest) + 1e-3)) * u_birth_glow.y;
+    float depth = u_birth.x * ENVELOPE_OPACITY * chord * (0.4 + 1.2 * fbm(closest * 0.12 + u_birth_glow.w * 0.02, 3.0)) * (1.0 - 0.8 * cone);
+    color = color * exp(-depth) + vec3(0.08, 0.04, 0.035) * (1.0 - exp(-depth));
+    color += vec3(1.0, 0.6, 0.35) * cone * u_birth.x * 0.15 * exp(-length(closest) / u_birth.y);
+
+    vec3 blast = SUPERNOVA_POSITION - origin;
+    float ahead = dot(blast, dir);
+    if (ahead > 0.0) {
+        float miss = length(blast - dir * ahead);
+        color += vec3(1.0, 0.95, 0.9) * u_birth_glow.x * (exp(-miss * 0.15) * 2.0 + 0.03);
+        float rim = exp(-square((miss - u_birth.z) / SHOCK_WIDTH)) + 0.12 * step(miss, u_birth.z);
+        float filaments = 0.5 + noise3(dir * 30.0);
+        vec3 shell = mix(vec3(1.0, 0.3, 0.35), vec3(0.4, 0.85, 1.0), smoothstep(-SHOCK_WIDTH, 0.0, miss - u_birth.z));
+        color += shell * rim * filaments * u_birth.w * 0.6;
+    }
+
+    if (u_birth_glow.y > 0.0) {
+        float tilt = dir.y;
+        float span = max(1.0 - tilt * tilt, 1e-4);
+        float s = (tilt * origin.y - dot(dir, origin)) / span;
+        float h = (origin.y - tilt * dot(dir, origin)) / span;
+        float miss = length(origin + dir * s - vec3(0.0, h, 0.0));
+        float reach = abs(h) / u_birth_glow.z;
+        if (s > 0.0 && reach < 1.3) {
+            float width = 0.3 + 0.06 * abs(h);
+            float knots = 0.55 + 0.45 * sin(abs(h) * 0.9 - u_birth_glow.w * 3.0);
+            float beam = exp(-square(miss / width)) * smoothstep(1.5, 4.0, abs(h)) * (1.0 - smoothstep(0.7, 1.0, reach)) * knots;
+            float bow = exp(-(square(abs(h) - u_birth_glow.z) + miss * miss) / 6.0);
+            vec3 tint = mix(vec3(0.75, 0.85, 1.0), vec3(1.0, 0.35, 0.45), smoothstep(0.0, 0.4, reach));
+            color += (tint * beam * 1.5 + vec3(1.0, 0.4, 0.5) * bow * 1.2) * u_birth_glow.y;
+        }
+    }
+    return color;
+}
+
 vec3 otherSky(vec3 d, vec2 du, vec2 dv) {
     vec3 galaxy = normalize(vec3(0.3, 0.15, 1.0));
     float turn = 2.0 * PI * u_time / TIME_PERIOD;
@@ -460,7 +504,7 @@ vec3 starSurface(vec3 n, vec3 view, float index) {
     vec3 giant = mix(vec3(0.7, 0.12, 0.04), vec3(1.0, 0.35, 0.12), mu);
     float heat = clamp(u_star.x, 0.0, 1.0);
     vec3 surface = mix(mix(giant, color, heat), vec3(0.75, 0.85, 1.0), clamp(u_star.x - 1.0, 0.0, 1.0));
-    return surface * (1.4 + 0.5 * granules) * limb * (1.0 - 0.8 * spots * heat) * max(u_star.x, 0.6);
+    return surface * (1.4 + 0.5 * granules) * limb * (1.0 - 0.8 * spots * max(heat, u_star.y)) * max(u_star.x, 0.6) * (1.0 + 0.6 * u_star.y);
 }
 
 vec3 spacetimeSheet(vec3 hit, vec3 dir) {
@@ -1353,6 +1397,9 @@ vec4 renderPixel(vec2 st) {
 #endif
     }
 
+#ifdef HAS_BIRTH
+    color = protoCloud(color, origin, dir);
+#endif
 #ifdef HAS_GALAXY
     vec3 stars = texture2D(galaxy_map, st).rgb;
     color += stars * stars * GALAXY_RANGE;

@@ -1,3 +1,4 @@
+import {BIRTH, ENVELOPE_RADIUS, SHOCK_SPEED, SolarBirth, growthOf, moonAngle, sunAt} from './birth.js';
 import {BIG_BANG, BigBang} from './cosmos.js';
 import {DebrisField} from './debris.js';
 import {GalaxyCollision, SpiralGalaxy, StarCluster} from './galaxy.js';
@@ -45,9 +46,12 @@ const CRAB_DISTANCE = 36;
 const CRAB_SCALE = 0.7;
 const CRAB_BEAMS = 1.5;
 const CRAB_LIFT = 0.5;
-const GALAXY_SCENARIOS = {collision: GalaxyCollision, cluster: StarCluster, bigbang: BigBang};
+const GALAXY_SCENARIOS = {collision: GalaxyCollision, cluster: StarCluster, bigbang: BigBang, birth: SolarBirth};
 const BIG_BANG_VIEW = {far: 70, near: 30, low: 0.3, high: 0.85};
 const BANG_FLASH = 3;
+const BIRTH_VIEW = {far: 120, near: 55, low: 0.15, high: 0.4};
+const SUPERNOVA_FLASH = 3;
+const JET_LENGTH = [10, 45];
 const KIND_FEATURES = {
     'black-hole': ['BLACK_HOLE', 'DISK'], 'neutron-star': ['NEUTRON'], 'star': ['STAR'],
     'wormhole': ['WORMHOLE'], 'planet': ['PLANET'], 'earth': ['EARTH'],
@@ -70,6 +74,7 @@ const SCENARIO_FEATURES = {
     collision: ['GALAXY'],
     cluster: ['GALAXY'],
     bigbang: ['GALAXY', 'BIGBANG'],
+    birth: ['GALAXY', 'STAR', 'SYSTEM', 'BIRTH'],
 };
 export const PAIR_STAND_INS = {'quasar': 'black-hole', 'dyson': 'star', 'crab': 'neutron-star'};
 
@@ -163,6 +168,7 @@ const DURATIONS = {
     supernova: EXPLOSION_TIME + REMNANT_TIME,
     collision: COLLISION_TIME,
     bigbang: BIG_BANG.end,
+    birth: BIRTH.end,
     'system-devour': SYSTEM_DEVOUR_TIME,
     'system-escape': ESCAPE_TIME,
 };
@@ -250,7 +256,9 @@ export class Scene {
             this._scenario = singleScenario(objects[0], events);
         else
             this._scenario = events ? SCENARIOS[[...objects].sort().join('+')] ?? 'orbit' : 'orbit';
-        if (this._mode === 'galaxy')
+        if (this._scenario === 'birth')
+            this._galaxy = new SolarBirth({planets: SYSTEM_PLANETS, year: SYSTEM_YEAR, moon: SYSTEM_MOONS[0], belt: SYSTEM_BELT});
+        else if (this._mode === 'galaxy')
             this._galaxy = new (GALAXY_SCENARIOS[this._scenario] ?? SpiralGalaxy)();
         this._time = 0;
         this._angle = 0;
@@ -358,6 +366,8 @@ export class Scene {
             particles: null,
             bigBang: [0, 0, 0, 0],
             bigBangClock: [0, 0, 0, 0],
+            birth: [0, 0, 0, 0],
+            birthGlow: [0, 0, 0, 0],
         };
         switch (this._scenario) {
         case 'single':
@@ -388,6 +398,7 @@ export class Scene {
         case 'collision':
         case 'cluster':
         case 'bigbang':
+        case 'birth':
             this._galaxyView(state, still);
             break;
         case 'supernova':
@@ -411,6 +422,7 @@ export class Scene {
         if (still) {
             state.flash = 0;
             state.bigBangClock[2] = 0;
+            state.birthGlow[0] = 0;
         } else if (duration) {
             const fadeIn = this._looped ? smooth(0, FADE_TIME, this._time) : 1;
             state.fade = fadeIn * (1 - smooth(duration - FADE_TIME, duration, this._time));
@@ -448,11 +460,15 @@ export class Scene {
 
     _galaxyView(state, still) {
         state.particles = this._galaxy;
-        if (this._scenario === 'bigbang') {
-            const t = still ? BIG_BANG.end - FADE_TIME : this._time;
+        const timeline = {bigbang: BIG_BANG, birth: BIRTH}[this._scenario];
+        if (timeline) {
+            const t = still ? timeline.end - FADE_TIME : this._time;
             if (still)
                 this._galaxy.update(t);
-            this._bigBang(state, t);
+            if (this._scenario === 'birth')
+                this._birth(state, t);
+            else
+                this._bigBang(state, t);
             return;
         }
         const view = GALAXY_VIEWS[this._scenario];
@@ -473,6 +489,54 @@ export class Scene {
         const settle = smooth(...BIG_BANG.galaxy, t);
         state.distance = mix(BIG_BANG_VIEW.far, BIG_BANG_VIEW.near, settle);
         state.lift = mix(BIG_BANG_VIEW.low, BIG_BANG_VIEW.high, settle);
+    }
+
+    _birth(state, t) {
+        const sun = sunAt(t);
+        const birth = this._galaxy;
+        const today = smooth(...BIRTH.today, t);
+        const [jetsIn, jetsFull, jetsOut, jetsGone] = BIRTH.jets;
+        const [shockIn, shockFull, shockOut, shockGone] = BIRTH.shock;
+        const [envelopeIn, envelopeGone] = BIRTH.envelope;
+        const envelope = 1 - smooth(envelopeIn, envelopeGone, t);
+        if (sun.scale > 0)
+            state.bodies = [body('star', [0, 0, 0], sun.scale)];
+        state.star = [sun.heat, 1 - sun.ignite, 0, 0];
+        state.light = [0, 0, 0, 1];
+        state.lightColor = [mix(0.9, 1, sun.ignite), mix(0.5, 0.97, sun.ignite), mix(0.3, 0.9, sun.ignite)];
+        state.planets = SYSTEM_PLANETS.flatMap((planet, index) => {
+            const angle = birth.planetAngle(index, t);
+            return [Math.cos(angle) * planet.orbit, 0, Math.sin(angle) * planet.orbit, planet.radius * growthOf(index, t) ** (1 / 3)];
+        });
+        state.orbits = SYSTEM_PLANETS.flatMap(planet => [planet.orbit, today]);
+        state.belt = [...SYSTEM_BELT, today, 0];
+        SYSTEM_MOONS.forEach((moon, index) => {
+            const host = state.planets.slice(moon.host * 4, moon.host * 4 + 4);
+            const angle = moonAngle(moon, t);
+            const reach = moon.orbit * SYSTEM_PLANETS[moon.host].radius;
+            const size = index === 0 ? smooth(...BIRTH.moon, t) ** (1 / 3) : host[3] / SYSTEM_PLANETS[moon.host].radius;
+            state.moons.splice(index * 4, 4, host[0] + Math.cos(angle) * reach, 0.03 * Math.sin(angle) * reach,
+                host[2] + Math.sin(angle) * reach, size * moon.radius * SYSTEM_PLANETS[moon.host].radius);
+            state.moonHosts[index] = moon.host;
+        });
+        state.system = today;
+        state.centerRadius = STAR_RADIUS * sun.scale;
+        state.birth = [
+            envelope,
+            mix(...ENVELOPE_RADIUS, smooth(BIRTH.collapse[0], envelopeGone, t)),
+            SHOCK_SPEED * Math.max(t - BIRTH.supernova, 0),
+            smooth(shockIn, shockFull, t) * (1 - smooth(shockOut, shockGone, t)),
+        ];
+        state.birthGlow = [
+            SUPERNOVA_FLASH * decay(t - BIRTH.supernova, 1.5),
+            smooth(jetsIn, jetsFull, t) * (1 - smooth(jetsOut, jetsGone, t)) * (0.35 + 0.65 * envelope),
+            mix(...JET_LENGTH, smooth(jetsIn, jetsOut, t)),
+            t,
+        ];
+        const settle = smooth(BIRTH.collapse[0], BIRTH.solids[1], t);
+        state.distance = mix(BIRTH_VIEW.far, BIRTH_VIEW.near, settle);
+        state.lift = mix(BIRTH_VIEW.low, BIRTH_VIEW.high, settle);
+        state.fov = SYSTEM_FOV;
     }
 
     _dyson(state) {

@@ -31,7 +31,8 @@ Light rays bend around the black hole, so the far side of the disk shows up abov
   - a spiral galaxy with a yellow bulge, blue trailing arms and pink star-forming knots, turning slowly;
   - two spiral galaxies colliding: a real gravity simulation of thousands of stars. They swing past each other, throw out long tidal tails, fall back and merge, then it starts again;
   - a globular star cluster: 16,000 old stars packed into a bright core, with orange giants and blue stragglers, slowly orbiting;
-  - the Big Bang: the history of the universe in 3 minutes. A tiny point flashes, space inflates into white-hot plasma that churns and cools to red, the fog clears into the cosmic microwave background, the dark ages pass, the first stars ignite, thousands of galaxies gather into the filaments of the cosmic web, and the camera settles on a spiral galaxy under today's stars. Then it starts again.
+  - the Big Bang: the history of the universe in 3 minutes. A tiny point flashes, space inflates into white-hot plasma that churns and cools to red, the fog clears into the cosmic microwave background, the dark ages pass, the first stars ignite, thousands of galaxies gather into the filaments of the cosmic web, and the camera settles on a spiral galaxy under today's stars. Then it starts again;
+  - the birth of the solar system, 4.6 billion years ago, in 3 minutes. A massive sibling star explodes and its shock wave squeezes a cold, dark cloud of gas and dust and seeds it with radioactive aluminium-26. The cloud collapses from the inside out, spins up and flattens into a disk around a hidden orange protostar that fires jets from its poles and carves cavities in the cloud. Dust settles into rock inside the frost line and ice outside it, and the frost line creeps inward as the disk cools. Jupiter forms first and clears a gap, then Saturn, Uranus and Neptune; Mars is done early. The young Sun's X-ray and UV light boil the outer gas away while the inner gas falls onto the Sun, which shrinks and settles into steady hydrogen burning. Mercury, Venus and Earth grow from colliding rocks, Theia hits the young Earth and the debris forms the Moon, and the leftovers stay as the asteroid and Kuiper belts. Then it starts again.
 - Real time: Earth's day and night follow the real clock and season, the Moon shows today's phase, and the solar system planets sit where they really are today.
 - Three skies: the Milky Way, a glowing band with dust lanes and a bright core; a pink and teal emission nebula with dark dust; or plain stars. All are bent by every black hole, neutron star and wormhole.
 - A single star lives out one of two real fates, taking turns:
@@ -101,7 +102,7 @@ gnome-extensions prefs space-wallpaper@include5691.github.io
 | First object (pair) | black hole | black hole, neutron star, star, wormhole, ringed planet, Earth |
 | Second object (pair) | black hole | black hole, neutron star, star, wormhole, ringed planet, Earth |
 | Center (solar system) | Sun | Sun, black hole, neutron star, wormhole |
-| Object (deep sky) | spiral galaxy | spiral galaxy, galaxy collision, star cluster, Big Bang |
+| Object (deep sky) | spiral galaxy | spiral galaxy, galaxy collision, star cluster, Big Bang, solar system birth |
 | Planet names (solar system) | off | |
 | Real time (Earth, solar system) | off | |
 | Speed | 100 % | 0 – 400, orbits and cosmic events |
@@ -156,6 +157,7 @@ The shader is compiled only with the parts the current scene needs, so the first
 | `events.js` | Object layout, orbits, lighting, pair events, the star life cycles and the magnetar |
 | `galaxy.js` | Spiral galaxy, galaxy collision and star cluster particles |
 | `cosmos.js` | Big Bang timeline, first stars, cosmic web and the forming galaxy |
+| `birth.js` | Solar system birth timeline, collapsing cloud, disk, planet growth and the Moon-forming impact |
 | `debris.js` | Tidal disruption fragments that orbit, heat up, feed the disk or escape |
 | `sky.js` | Sun, Moon and planet positions for real time |
 | `shader.js` | Scene and ASCII GLSL shaders |

@@ -15,7 +15,7 @@ const ORBITS = [
 ];
 
 const radians = degrees => degrees * Math.PI / 180;
-const wrap = angle => angle - 2 * Math.PI * Math.floor((angle + Math.PI) / (2 * Math.PI));
+export const wrap = angle => angle - 2 * Math.PI * Math.floor((angle + Math.PI) / (2 * Math.PI));
 
 export function skyAt(milliseconds) {
     const days = (milliseconds - J2000) / DAY;

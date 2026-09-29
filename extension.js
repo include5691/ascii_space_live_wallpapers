@@ -6,6 +6,7 @@ import {Extension, InjectionManager} from 'resource:///org/gnome/shell/extension
 import * as Background from 'resource:///org/gnome/shell/ui/background.js';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 
+import {PAIR_STAND_INS} from './events.js';
 import {SpaceContent} from './renderer.js';
 
 const MIN_SMOOTHING = 0.03;
@@ -24,7 +25,7 @@ function readOptions(settings) {
         mode,
         labels: settings.get_boolean('labels'),
         objects: {
-            pair: [first === 'quasar' ? 'black-hole' : first, settings.get_string('second-object')],
+            pair: [PAIR_STAND_INS[first] ?? first, settings.get_string('second-object')],
             system: [settings.get_string('center')],
             galaxy: [settings.get_string('galaxy')],
         }[mode] ?? [first],

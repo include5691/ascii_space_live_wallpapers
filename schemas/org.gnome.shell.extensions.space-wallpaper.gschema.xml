@@ -20,9 +20,11 @@
         <choice value="planet"/>
         <choice value="earth"/>
         <choice value="quasar"/>
+        <choice value="dyson"/>
+        <choice value="crab"/>
       </choices>
       <default>'black-hole'</default>
-      <summary>The object in single mode, and the first object of a pair; a quasar is shown alone only</summary>
+      <summary>The object in single mode, and the first object of a pair; a quasar, a Dyson swarm and the Crab Nebula are shown alone only</summary>
     </key>
     <key name="second-object" type="s">
       <choices>
@@ -50,9 +52,10 @@
       <choices>
         <choice value="spiral"/>
         <choice value="collision"/>
+        <choice value="cluster"/>
       </choices>
       <default>'spiral'</default>
-      <summary>Show a spiral galaxy, or two galaxies colliding</summary>
+      <summary>Show a spiral galaxy, two galaxies colliding, or a globular star cluster</summary>
     </key>
     <key name="real-time" type="b">
       <default>false</default>

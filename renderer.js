@@ -33,7 +33,7 @@ const SCENE_UNIFORMS = [
     'u_tidal', 'u_jets', 'u_kilonova', 'u_flash', 'u_fade', 'u_beams', 'u_background', 'u_star',
     'u_spins', 'u_light', 'u_comet', 'u_comet_ion', 'u_comet_dust', 'u_meteors',
     'earth_map', 'u_light_color', 'u_planets', 'u_system', 'u_belt', 'u_distance',
-    'u_live', 'u_moon_tilt', 'u_moons', 'u_moon_hosts', 'u_magnetar', 'u_quasar', 'galaxy_map', 'u_galaxy',
+    'u_live', 'u_moon_tilt', 'u_moons', 'u_moon_hosts', 'u_magnetar', 'u_quasar', 'u_dyson', 'u_crab', 'galaxy_map', 'u_galaxy',
 ];
 const ASCII_UNIFORMS = ['scene', 'u_output', 'u_cells', 'u_origin', 'u_font', 'u_labels', 'u_label_text'];
 const LETTERS = 'ACEHIJMNPRSTUVY';
@@ -433,6 +433,8 @@ export const SpaceContent = GObject.registerClass({
         pipeline.set_uniform_float(uniforms.u_moons, 4, 6, scene.moons);
         pipeline.set_uniform_float(uniforms.u_moon_hosts, 1, 6, scene.moonHosts);
         pipeline.set_uniform_1f(uniforms.u_quasar, scene.quasar);
+        pipeline.set_uniform_1f(uniforms.u_dyson, scene.dyson);
+        pipeline.set_uniform_1f(uniforms.u_crab, scene.crab);
         pipeline.set_uniform_1f(uniforms.u_moon_tilt, scene.moonTilt);
 
         const camera = {yaw: this._camera.yaw, pitch, roll: options.tilt, distance: scene.distance, fov};

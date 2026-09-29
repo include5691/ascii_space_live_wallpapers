@@ -4,11 +4,13 @@ import Gtk from 'gi://Gtk';
 
 import {ExtensionPreferences} from 'resource:///org/gnome/Shell/Extensions/js/extensions/prefs.js';
 
+import {PAIR_STAND_INS} from './events.js';
+
 const MODES = [
     ['single', 'Single'],
     ['pair', 'Pair'],
     ['system', 'Solar system'],
-    ['galaxy', 'Galaxy'],
+    ['galaxy', 'Deep sky'],
 ];
 
 const OBJECTS = [
@@ -20,11 +22,12 @@ const OBJECTS = [
     ['earth', 'Earth'],
 ];
 
-const SINGLE_OBJECTS = [...OBJECTS, ['quasar', 'Quasar']];
+const SINGLE_OBJECTS = [...OBJECTS, ['quasar', 'Quasar'], ['dyson', 'Dyson swarm'], ['crab', 'Crab Nebula']];
 
 const GALAXIES = [
     ['spiral', 'Spiral galaxy'],
     ['collision', 'Galaxy collision'],
+    ['cluster', 'Star cluster'],
 ];
 
 const CENTERS = [
@@ -45,7 +48,7 @@ const EVENT_PAIRS = new Set([
 function selectedObjects(settings) {
     const first = settings.get_string('first-object');
     return {
-        pair: [first === 'quasar' ? 'black-hole' : first, settings.get_string('second-object')],
+        pair: [PAIR_STAND_INS[first] ?? first, settings.get_string('second-object')],
         system: [settings.get_string('center')],
         galaxy: [],
     }[settings.get_string('mode')] ?? [first];
@@ -101,7 +104,7 @@ function switchRow(settings, key, title, subtitle = '') {
     return row;
 }
 
-function comboRow(settings, key, title, options) {
+function comboRow(settings, key, title, options, aliases = {}) {
     const row = new Adw.ComboRow({
         title,
         model: Gtk.StringList.new(options.map(([, label]) => label)),
@@ -109,7 +112,8 @@ function comboRow(settings, key, title, options) {
     let syncing = false;
     const sync = () => {
         syncing = true;
-        row.selected = Math.max(options.findIndex(([value]) => value === settings.get_string(key)), 0);
+        const stored = settings.get_string(key);
+        row.selected = Math.max(options.findIndex(([value]) => value === (aliases[stored] ?? stored)), 0);
         syncing = false;
     };
     sync();
@@ -142,9 +146,9 @@ export default class SpaceWallpaperPreferences extends ExtensionPreferences {
         const orbitSpeed = spinRow(settings, 'orbit-speed', 'Speed', 'Orbits and cosmic events, in percent');
         objects.add(comboRow(settings, 'mode', 'Mode', MODES));
         const singleObject = comboRow(settings, 'first-object', 'Object', SINGLE_OBJECTS);
-        const firstObject = comboRow(settings, 'first-object', 'First object', OBJECTS);
+        const firstObject = comboRow(settings, 'first-object', 'First object', OBJECTS, PAIR_STAND_INS);
         const center = comboRow(settings, 'center', 'Center', CENTERS);
-        const galaxy = comboRow(settings, 'galaxy', 'Galaxy', GALAXIES);
+        const galaxy = comboRow(settings, 'galaxy', 'Object', GALAXIES);
         const labels = switchRow(settings, 'labels', 'Planet names');
         const realTime = switchRow(settings, 'real-time', 'Real time',
             "Earth's day and night, the Moon's phase and the planets follow the real clock");

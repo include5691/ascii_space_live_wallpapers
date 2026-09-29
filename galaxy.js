@@ -23,6 +23,17 @@ const TAIL_GAIN = 4;
 const ESCAPE_START = 6;
 const ESCAPE_END = 9;
 
+const CLUSTER_STARS = 16000;
+const CLUSTER_CORE = 2.2;
+const CLUSTER_LIMIT = 16;
+const CLUSTER_PERIOD = 160;
+const CLUSTER_TYPES = [
+    {share: 0.03, color: [1, 0.6, 0.32], glow: [2, 4]},
+    {share: 0.02, color: [0.65, 0.78, 1], glow: [1.2, 2]},
+    {share: 0.01, color: [0.55, 0.7, 1], glow: [1.5, 2.5]},
+    {share: 0.94, color: [1, 0.9, 0.74], glow: [0.15, 0.5]},
+];
+
 const OLD_COLOR = [1, 0.86, 0.66];
 const YOUNG_COLOR = [0.55, 0.7, 1];
 const NEBULA_COLOR = [1, 0.4, 0.55];
@@ -135,6 +146,66 @@ export class SpiralGalaxy {
             positions[o + 2] = x * star.sinNode + around * star.cosTilt * star.cosNode;
         });
     }
+}
+
+export class StarCluster {
+    constructor(seed = 23) {
+        const random = randomStream(seed);
+        this.count = CLUSTER_STARS;
+        this.positions = new Float32Array(this.count * 3);
+        this.colors = new Float32Array(this.count * 3);
+        this._orbits = new Float32Array(this.count * 8);
+        for (let index = 0; index < this.count; index++) {
+            let radius;
+            do
+                radius = CLUSTER_CORE / Math.sqrt(Math.max(random(), 1e-6) ** (-2 / 3) - 1);
+            while (radius > CLUSTER_LIMIT);
+            const axis = unitVector(random);
+            const helper = Math.abs(axis[1]) < 0.9 ? [0, 1, 0] : [1, 0, 0];
+            const first = normalized(crossed(axis, helper));
+            const second = crossed(axis, first);
+            const o = index * 8;
+            for (let i = 0; i < 3; i++) {
+                this._orbits[o + i] = first[i] * radius;
+                this._orbits[o + 3 + i] = second[i] * radius;
+            }
+            this._orbits[o + 6] = 2 * Math.PI * random();
+            this._orbits[o + 7] = 2 * Math.PI / CLUSTER_PERIOD / (1 + (radius / CLUSTER_CORE) ** 2) ** 0.75;
+            let pick = random();
+            const type = CLUSTER_TYPES.find(candidate => (pick -= candidate.share) < 0) ?? CLUSTER_TYPES.at(-1);
+            setColor(this.colors, index, type.color, type.glow[0] + (type.glow[1] - type.glow[0]) * random());
+        }
+    }
+
+    update(time) {
+        const {positions} = this;
+        const orbits = this._orbits;
+        for (let index = 0; index < this.count; index++) {
+            const o = index * 8;
+            const angle = orbits[o + 6] + orbits[o + 7] * time;
+            const cos = Math.cos(angle);
+            const sin = Math.sin(angle);
+            positions[index * 3] = orbits[o] * cos + orbits[o + 3] * sin;
+            positions[index * 3 + 1] = orbits[o + 1] * cos + orbits[o + 4] * sin;
+            positions[index * 3 + 2] = orbits[o + 2] * cos + orbits[o + 5] * sin;
+        }
+    }
+}
+
+function unitVector(random) {
+    const z = 2 * random() - 1;
+    const angle = 2 * Math.PI * random();
+    const ring = Math.sqrt(1 - z * z);
+    return [ring * Math.cos(angle), z, ring * Math.sin(angle)];
+}
+
+function crossed(a, b) {
+    return [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
+}
+
+function normalized(v) {
+    const size = Math.hypot(...v);
+    return v.map(x => x / size);
 }
 
 function tiltedBasis([inclination, node]) {

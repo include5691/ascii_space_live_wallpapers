@@ -40,6 +40,8 @@ uniform vec4 u_moons[6];
 uniform float u_moon_hosts[6];
 uniform vec4 u_magnetar;
 uniform float u_quasar;
+uniform float u_dyson;
+uniform float u_crab;
 uniform sampler2D galaxy_map;
 uniform float u_galaxy;
 
@@ -69,6 +71,12 @@ const vec3 MAGNETIC_POLE = vec3(0.048, 0.987, 0.154);
 const float AURORA_LATITUDE = 1.16;
 const vec3 NEBULA_CENTER = vec3(-0.45, -0.2, -1.0);
 const float QUASAR_JET_REACH = 90.0;
+const float DYSON_PANELS = 72.0;
+const float DYSON_BAND = 0.35;
+const float CRAB_RADIUS = 13.0;
+const float CRAB_STEP = 0.4;
+const vec3 CRAB_SQUASH = vec3(1.0, 0.8, 0.72);
+const vec3 CRAB_AXIS = vec3(0.0, 1.0, 0.0);
 const float GALAXY_RANGE = 4.0;
 const float COMET_STEP = 0.35;
 const float COMET_CORE = 0.03;
@@ -486,6 +494,70 @@ vec3 eventGlow(vec3 p) {
 
 vec3 lightFrom(vec3 p) {
     return u_light.w > 0.5 ? normalize(u_light.xyz - p) : u_light.xyz;
+}
+
+vec3 dysonNormal(float ring) {
+    float incline = 0.25 + 0.42 * ring;
+    float node = 1.1 * ring + 1.5;
+    return vec3(sin(incline) * cos(node), cos(incline), sin(incline) * sin(node));
+}
+
+vec4 dysonHit(vec3 from, vec3 to, vec3 center, float scale) {
+    vec3 dir = normalize(to - from);
+    float best = 2.0;
+    vec4 hit = vec4(0.0);
+    for (int k = 0; k < 6; k++) {
+        float ring = float(k);
+        vec3 normal = dysonNormal(ring);
+        float before = dot(from - center, normal);
+        float after = dot(to - center, normal);
+        if (before * after >= 0.0)
+            continue;
+        float t = before / (before - after);
+        if (t >= best)
+            continue;
+        vec3 point = mix(from, to, t) - center;
+        float radius = STAR_RADIUS * scale * (1.6 + 0.22 * ring);
+        float r = length(point);
+        if (abs(r - radius) > DYSON_BAND)
+            continue;
+        vec3 side = normalize(cross(normal, abs(normal.y) < 0.9 ? vec3(0.0, 1.0, 0.0) : vec3(1.0, 0.0, 0.0)));
+        float angle = atan(dot(point, cross(normal, side)), dot(point, side));
+        float slot = fract(angle / (2.0 * PI) + u_time / TIME_PERIOD * (8.0 - ring)) * DYSON_PANELS;
+        if (abs(fract(slot) - 0.5) > 0.34 || hash13(vec3(floor(slot), ring, 5.0)) < 0.12)
+            continue;
+        best = t;
+        float facing = dot(dir, point / r);
+        vec3 panel = facing > 0.0
+            ? vec3(1.0, 0.85, 0.6) * (0.25 + 1.4 * pow(facing, 3.0))
+            : vec3(0.35, 0.08, 0.03) * 0.15;
+        hit = vec4(panel, 0.92);
+    }
+    return hit;
+}
+
+vec3 crabGlow(vec3 p) {
+    float r = length(p / CRAB_SQUASH);
+    if (r > CRAB_RADIUS * 1.3)
+        return vec3(0.0);
+    float ragged = r * (1.0 + 0.35 * (fbm(normalize(p) * 2.0 + 5.0, 3.0) - 0.5));
+    float edge = 1.0 - smoothstep(CRAB_RADIUS * 0.75, CRAB_RADIUS, ragged);
+    if (edge <= 0.0)
+        return vec3(0.0);
+    float synchrotron = exp(-r / (0.25 * CRAB_RADIUS)) * (0.5 + 0.5 * fbm(p * 0.35 + 4.0, 3.0));
+    float ridge = pow(1.0 - abs(2.0 * fbm(p * 0.9 + 11.0, 3.0) - 1.0), 12.0);
+    float shell = smoothstep(0.3, 0.75, ragged / CRAB_RADIUS);
+    vec3 filament = mix(vec3(1.0, 0.25, 0.15), vec3(1.0, 0.8, 0.3), smoothstep(0.35, 0.65, noise3(p * 0.3 + 2.0)));
+    vec3 axis = normalize(CRAB_AXIS);
+    float height = dot(p, axis);
+    float across = length(p - axis * height);
+    float torus = exp(-square((across - 4.0) / 0.5) - square(height / 0.35));
+    float ripple = pow(1.0 - abs(2.0 * fract(across * 0.4 - u_time / TIME_PERIOD * 32.0) - 1.0), 8.0);
+    float wisps = exp(-square(height / 0.4)) * smoothstep(3.0, 4.5, across) * (1.0 - smoothstep(6.0, 9.0, across)) * ripple;
+    float jet = exp(-square(across / (0.25 + 0.06 * abs(height)))) * smoothstep(2.0, 3.0, abs(height))
+        * (1.0 - smoothstep(6.0, 11.0, abs(height)));
+    return (vec3(0.4, 0.55, 1.0) * synchrotron * 0.25 + filament * ridge * shell * 0.09
+        + vec3(0.7, 0.8, 1.0) * (torus * 0.4 + wisps * 0.75 + jet * 0.25)) * edge;
 }
 
 vec3 quasarHost(vec3 p) {
@@ -943,6 +1015,8 @@ vec4 renderPixel(vec2 st) {
         float dt = max(STEP_SCALE * nearest * max(1.0, length(pos) / 25.0), 0.02);
         if (comet)
             dt = min(dt, max(MIN_COMET_STEP, COMET_STEP * cometDistance(pos)));
+        if (u_crab > 0.5 && dot(pos, pos) < square(CRAB_RADIUS * 1.2))
+            dt = min(dt, CRAB_STEP);
 
         for (int i = 0; i < 2; i++) {
             if (float(i) >= u_count)
@@ -959,6 +1033,8 @@ vec4 renderPixel(vec2 st) {
         }
         if (u_quasar > 0.5)
             color += transmittance * quasarHost(pos) * dt;
+        if (u_crab > 0.5)
+            color += transmittance * crabGlow(pos) * dt;
         if (events)
             color += transmittance * eventGlow(pos) * dt;
         if (comet)
@@ -969,6 +1045,12 @@ vec4 renderPixel(vec2 st) {
         vec3 nextA = accel(next, halfVel);
         vel = halfVel + nextA * (0.5 * dt);
         a = nextA;
+
+        if (u_dyson > 0.5) {
+            vec4 panel = dysonHit(pos, next, u_bodies[0].xyz, u_bodies[0].w);
+            color += transmittance * panel.rgb * panel.a;
+            transmittance *= 1.0 - panel.a;
+        }
 
         if (pos.y * next.y < 0.0) {
             vec3 hit = mix(pos, next, pos.y / (pos.y - next.y));

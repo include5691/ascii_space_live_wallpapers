@@ -1,4 +1,4 @@
-import {GalaxyCollision, SpiralGalaxy} from './galaxy.js';
+import {GalaxyCollision, SpiralGalaxy, StarCluster} from './galaxy.js';
 
 const SEPARATION = 12;
 const PAIR_SCALE = 0.6;
@@ -40,7 +40,15 @@ const VIEW_DISTANCE = 22;
 const GALAXY_VIEWS = {
     spiral: {distance: 30, lift: 0.85},
     collision: {distance: 64, lift: 0.3},
+    cluster: {distance: 40, lift: 0.2},
 };
+const DYSON_DISTANCE = 30;
+const CRAB_DISTANCE = 36;
+const CRAB_SCALE = 0.7;
+const CRAB_BEAMS = 1.5;
+const CRAB_LIFT = 0.5;
+const GALAXY_SCENARIOS = {collision: GalaxyCollision, cluster: StarCluster};
+export const PAIR_STAND_INS = {'quasar': 'black-hole', 'dyson': 'star', 'crab': 'neutron-star'};
 
 export const KINDS = {'black-hole': 0, 'neutron-star': 1, 'star': 2, 'wormhole': 3, 'planet': 4, 'earth': 5};
 
@@ -152,8 +160,8 @@ function radiusOf(kind, scale) {
 }
 
 function singleScenario(kind, events) {
-    if (kind === 'quasar')
-        return 'quasar';
+    if (kind === 'quasar' || kind === 'dyson' || kind === 'crab')
+        return kind;
     if (!events)
         return 'single';
     return {'star': 'supernova', 'neutron-star': 'magnetar'}[kind] ?? 'single';
@@ -170,15 +178,13 @@ export class Scene {
         if (mode === 'system')
             this._scenario = 'system';
         else if (mode === 'galaxy')
-            this._scenario = objects[0] === 'collision' ? 'collision' : 'spiral';
+            this._scenario = GALAXY_SCENARIOS[objects[0]] ? objects[0] : 'spiral';
         else if (objects.length === 1)
             this._scenario = singleScenario(objects[0], events);
         else
             this._scenario = events ? SCENARIOS[[...objects].sort().join('+')] ?? 'orbit' : 'orbit';
-        if (this._scenario === 'spiral')
-            this._galaxy = new SpiralGalaxy();
-        else if (this._scenario === 'collision')
-            this._galaxy = new GalaxyCollision();
+        if (this._mode === 'galaxy')
+            this._galaxy = new (GALAXY_SCENARIOS[this._scenario] ?? SpiralGalaxy)();
         this._time = 0;
         this._angle = 0;
         this._looped = false;
@@ -218,7 +224,7 @@ export class Scene {
         }
         if (this._scenario === 'collision')
             this._galaxy.advance(step);
-        else if (this._scenario === 'spiral')
+        else if (this._galaxy)
             this._galaxy.update(this._time);
         this._moonTime += dt;
         this._planetAngles = this._planetAngles.map((angle, index) =>
@@ -262,6 +268,8 @@ export class Scene {
             moonTilt: this._sky ? moonTilt(this._sky.moonLatitude) : 0,
             magnetar: [0, 0, 0, 0],
             quasar: 0,
+            dyson: 0,
+            crab: 0,
             particles: null,
         };
         switch (this._scenario) {
@@ -280,8 +288,15 @@ export class Scene {
         case 'quasar':
             this._quasar(state);
             break;
+        case 'dyson':
+            this._dyson(state);
+            break;
+        case 'crab':
+            this._crab(state);
+            break;
         case 'spiral':
         case 'collision':
+        case 'cluster':
             this._galaxyView(state);
             break;
         case 'supernova':
@@ -347,6 +362,20 @@ export class Scene {
         state.distance = view.distance;
         state.lift = view.lift;
         state.meteors = 0;
+    }
+
+    _dyson(state) {
+        state.bodies = [body('star', [0, 0, 0], SINGLE_STAR_SCALE)];
+        state.dyson = 1;
+        state.distance = DYSON_DISTANCE;
+    }
+
+    _crab(state) {
+        state.bodies = [body('neutron-star', [0, 0, 0], CRAB_SCALE)];
+        state.crab = 1;
+        state.beams = CRAB_BEAMS;
+        state.distance = CRAB_DISTANCE;
+        state.lift = CRAB_LIFT;
     }
 
     _quasar(state) {

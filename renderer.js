@@ -7,7 +7,7 @@ import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 
 import {EARTH_MAP} from './earthmap.js';
 import {KINDS, PLANET_NAMES, Scene} from './events.js';
-import {ASCII_SHADER, SCENE_SHADER} from './shader.js';
+import {ASCII_SHADER, sceneShader} from './shader.js';
 import {skyAt} from './sky.js';
 
 const FOV = 0.36;
@@ -24,16 +24,16 @@ const CELL_HEIGHT = 9;
 const SAMPLES_PER_CELL = 2;
 const GALAXY_GAIN = 0.014;
 const GALAXY_RANGE = 4;
-const BACKGROUNDS = {'stars': 0, 'milky-way': 1, 'nebula': 2};
+const BACKGROUND_FEATURES = {'milky-way': ['MILKY_WAY'], 'nebula': ['NEBULA']};
 const PLACEHOLDER_BODY = {kind: 'star', position: [0, 0, 0], scale: 1, disk: [0, 0, 0]};
 
 const SCENE_UNIFORMS = [
     'u_resolution', 'u_camera', 'u_fov', 'u_flow', 'u_time', 'u_exposure', 'u_doppler',
     'u_bodies', 'u_disks', 'u_kinds', 'u_count', 'u_gw', 'u_burst', 'u_stream', 'u_stream_center',
     'u_tidal', 'u_jets', 'u_kilonova', 'u_flash', 'u_fade', 'u_beams', 'u_background', 'u_star',
-    'u_spins', 'u_light', 'u_comet', 'u_comet_ion', 'u_comet_dust', 'u_meteors',
-    'earth_map', 'u_light_color', 'u_planets', 'u_system', 'u_belt', 'u_distance',
-    'u_live', 'u_moon_tilt', 'u_moons', 'u_moon_hosts', 'u_magnetar', 'u_quasar', 'u_dyson', 'u_crab', 'galaxy_map', 'u_galaxy',
+    'u_spins', 'u_light', 'u_comet', 'u_comet_ion', 'u_comet_dust',
+    'earth_map', 'u_light_color', 'u_planets', 'u_belt', 'u_distance',
+    'u_live', 'u_moon_tilt', 'u_moons', 'u_moon_hosts', 'u_magnetar', 'u_quasar', 'galaxy_map',
 ];
 const ASCII_UNIFORMS = ['scene', 'u_output', 'u_cells', 'u_origin', 'u_font', 'u_labels', 'u_label_text'];
 const LETTERS = 'ACEHIJMNPRSTUVY';
@@ -81,14 +81,37 @@ const ROUNDED_CLIP_CODE = 'cogl_color_out *= rounded_rect_coverage(cogl_tex_coor
 
 const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
 
-function createPipeline(context, shader, entry, names) {
+const templates = new Map();
+
+function createTemplate(context, shader, entry) {
     const pipeline = Cogl.Pipeline.new(context);
     pipeline.set_layer_null_texture(0);
     const snippet = Cogl.Snippet.new(Cogl.SnippetHook.FRAGMENT, shader, null);
     snippet.set_replace(`cogl_color_out = ${entry}(cogl_tex_coord_in[0].xy);`);
     pipeline.add_snippet(snippet);
-    const uniforms = Object.fromEntries(names.map(name => [name, pipeline.get_uniform_location(name)]));
-    return {pipeline, uniforms};
+    return pipeline;
+}
+
+function createPipeline(context, key, build) {
+    if (!templates.has(key))
+        templates.set(key, build());
+    return templates.get(key).copy();
+}
+
+function uniformsOf(pipeline, names) {
+    return Object.fromEntries(names.map(name => [name, pipeline.get_uniform_location(name)]));
+}
+
+function createScenePipeline(context, features, slots) {
+    const pipeline = createPipeline(context, `scene ${slots} ${features.join(' ')}`, () => {
+        const template = createTemplate(context, sceneShader(features, slots), 'renderPixel');
+        template.set_layer_texture(1, createEarthTexture(context));
+        template.set_layer_filters(1, Cogl.PipelineFilter.LINEAR, Cogl.PipelineFilter.LINEAR);
+        template.set_layer_wrap_mode(1, Cogl.PipelineWrapMode.REPEAT);
+        template.set_uniform_1i(template.get_uniform_location('earth_map'), 1);
+        return template;
+    });
+    return {pipeline, uniforms: uniformsOf(pipeline, SCENE_UNIFORMS), galaxy: features.includes('GALAXY'), galaxyTexture: null};
 }
 
 function createFramebuffer(texture) {
@@ -214,7 +237,7 @@ export const SpaceContent = GObject.registerClass({
         this._monitor = null;
         this._scale = 1;
         this._locked = false;
-        this._scenePipeline = null;
+        this._scenePipelines = new Map();
         this._asciiPipeline = null;
         this._viewPipelines = new WeakMap();
         this._sceneFramebuffer = null;
@@ -313,15 +336,11 @@ export const SpaceContent = GObject.registerClass({
     }
 
     _allocate(context) {
-        if (!this._scenePipeline) {
-            this._scenePipeline = createPipeline(context, SCENE_SHADER, 'renderPixel', SCENE_UNIFORMS);
-            const {pipeline, uniforms} = this._scenePipeline;
-            pipeline.set_layer_texture(1, createEarthTexture(context));
-            pipeline.set_layer_filters(1, Cogl.PipelineFilter.LINEAR, Cogl.PipelineFilter.LINEAR);
-            pipeline.set_layer_wrap_mode(1, Cogl.PipelineWrapMode.REPEAT);
-            pipeline.set_uniform_1i(uniforms.earth_map, 1);
+        this._context = context;
+        if (!this._asciiPipeline) {
+            const pipeline = createPipeline(context, 'ascii', () => createTemplate(context, ASCII_SHADER, 'asciiPixel'));
+            this._asciiPipeline = {pipeline, uniforms: uniformsOf(pipeline, ASCII_UNIFORMS)};
         }
-        this._asciiPipeline ??= createPipeline(context, ASCII_SHADER, 'asciiPixel', ASCII_UNIFORMS);
 
         const width = Math.round(this._monitor.width * this._scale);
         const height = Math.round(this._monitor.height * this._scale);
@@ -339,18 +358,11 @@ export const SpaceContent = GObject.registerClass({
         this._galaxyTexture = Cogl.Texture2D.new_with_size(context, columns, rows);
         this._galaxyLight = new Float32Array(columns * rows * 3);
         this._galaxyPixels = new Uint8Array(columns * rows * 4);
-        this._scenePipeline.pipeline.set_layer_texture(2, this._galaxyTexture);
-        this._scenePipeline.pipeline.set_layer_filters(2, Cogl.PipelineFilter.LINEAR, Cogl.PipelineFilter.LINEAR);
-        this._scenePipeline.pipeline.set_layer_wrap_mode(2, Cogl.PipelineWrapMode.CLAMP_TO_EDGE);
-        this._scenePipeline.pipeline.set_uniform_1i(this._scenePipeline.uniforms.galaxy_map, 2);
 
         this._grid = {
-            columns, rows, aspect: (columns * cellWidth) / (rows * cellHeight),
+            columns, rows, cellWidth, cellHeight, aspect: (columns * cellWidth) / (rows * cellHeight),
             originX: Math.floor((columns * cellWidth - width) / 2), originY: Math.floor((rows * cellHeight - height) / 2),
         };
-        const scene = this._scenePipeline;
-        scene.pipeline.set_uniform_float(scene.uniforms.u_resolution, 2, 1,
-            [columns * cellWidth, rows * cellHeight]);
 
         const ascii = this._asciiPipeline;
         ascii.pipeline.set_layer_texture(0, sceneTexture);
@@ -398,7 +410,10 @@ export const SpaceContent = GObject.registerClass({
         const {pitch} = this._camera;
         const fov = FOV * scene.fov / this._zoom;
 
-        const {pipeline, uniforms} = this._scenePipeline;
+        const target = this._scenePipelineFor(options);
+        const {pipeline, uniforms} = target;
+        const {columns, rows, cellWidth, cellHeight} = this._grid;
+        pipeline.set_uniform_float(uniforms.u_resolution, 2, 1, [columns * cellWidth, rows * cellHeight]);
         pipeline.set_uniform_float(uniforms.u_camera, 3, 1, [this._camera.yaw, pitch, options.tilt]);
         pipeline.set_uniform_float(uniforms.u_flow, 4, 1, [phaseA, seedA, phaseB, seedB]);
         pipeline.set_uniform_1f(uniforms.u_time, this._time);
@@ -409,7 +424,6 @@ export const SpaceContent = GObject.registerClass({
         pipeline.set_uniform_1f(uniforms.u_distance, scene.distance);
         pipeline.set_uniform_float(uniforms.u_light_color, 3, 1, scene.lightColor);
         pipeline.set_uniform_float(uniforms.u_planets, 4, 8, scene.planets);
-        pipeline.set_uniform_1f(uniforms.u_system, scene.system);
         pipeline.set_uniform_float(uniforms.u_belt, 4, 1, scene.belt);
         const padded = [0, 1].map(index => scene.bodies[index] ?? scene.bodies[0] ?? PLACEHOLDER_BODY);
         pipeline.set_uniform_float(uniforms.u_bodies, 4, 2, padded.flatMap(body => [...body.position, body.scale]));
@@ -428,30 +442,44 @@ export const SpaceContent = GObject.registerClass({
         pipeline.set_uniform_1f(uniforms.u_flash, scene.flash);
         pipeline.set_uniform_1f(uniforms.u_fade, scene.fade);
         pipeline.set_uniform_1f(uniforms.u_beams, scene.beams);
-        pipeline.set_uniform_1f(uniforms.u_meteors, scene.meteors);
-        pipeline.set_uniform_1f(uniforms.u_background, BACKGROUNDS[options.background] ?? 0);
         pipeline.set_uniform_float(uniforms.u_moons, 4, 6, scene.moons);
         pipeline.set_uniform_float(uniforms.u_moon_hosts, 1, 6, scene.moonHosts);
         pipeline.set_uniform_1f(uniforms.u_quasar, scene.quasar);
-        pipeline.set_uniform_1f(uniforms.u_dyson, scene.dyson);
-        pipeline.set_uniform_1f(uniforms.u_crab, scene.crab);
         pipeline.set_uniform_1f(uniforms.u_moon_tilt, scene.moonTilt);
 
         const camera = {yaw: this._camera.yaw, pitch, roll: options.tilt, distance: scene.distance, fov};
         this._view = {...camera, aspect: this._grid.aspect};
         this._updateLabels(scene, camera);
-        this._updateGalaxy(scene.particles, this._view);
+        this._updateGalaxy(target, scene.particles, this._view);
 
         drawFullscreen(this._sceneFramebuffer, pipeline);
         drawFullscreen(this._framebuffer, this._asciiPipeline.pipeline);
         this._dirty = false;
     }
 
-    _updateGalaxy(particles, camera) {
-        const {pipeline, uniforms} = this._scenePipeline;
-        pipeline.set_uniform_1f(uniforms.u_galaxy, particles ? 1 : 0);
-        if (!particles)
+    _scenePipelineFor(options) {
+        const features = [...this._scene.features, ...BACKGROUND_FEATURES[options.background] ?? []];
+        if (options.comets && options.mode !== 'galaxy')
+            features.push('COMET', 'METEORS');
+        const key = `${this._scene.slots} ${features.sort().join(' ')}`;
+        let target = this._scenePipelines.get(key);
+        if (!target) {
+            target = createScenePipeline(this._context, features, this._scene.slots);
+            this._scenePipelines.set(key, target);
+        }
+        return target;
+    }
+
+    _updateGalaxy(target, particles, camera) {
+        if (!particles || !target.galaxy)
             return;
+        if (target.galaxyTexture !== this._galaxyTexture) {
+            target.pipeline.set_layer_texture(2, this._galaxyTexture);
+            target.pipeline.set_layer_filters(2, Cogl.PipelineFilter.LINEAR, Cogl.PipelineFilter.LINEAR);
+            target.pipeline.set_layer_wrap_mode(2, Cogl.PipelineWrapMode.CLAMP_TO_EDGE);
+            target.pipeline.set_uniform_1i(target.uniforms.galaxy_map, 2);
+            target.galaxyTexture = this._galaxyTexture;
+        }
         const light = this._galaxyLight;
         const pixels = this._galaxyPixels;
         light.fill(0);

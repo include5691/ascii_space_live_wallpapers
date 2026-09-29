@@ -48,6 +48,25 @@ const CRAB_SCALE = 0.7;
 const CRAB_BEAMS = 1.5;
 const CRAB_LIFT = 0.5;
 const GALAXY_SCENARIOS = {collision: GalaxyCollision, cluster: StarCluster};
+const KIND_FEATURES = {
+    'black-hole': ['BLACK_HOLE', 'DISK'], 'neutron-star': ['NEUTRON'], 'star': ['STAR'],
+    'wormhole': ['WORMHOLE'], 'planet': ['PLANET'], 'earth': ['EARTH'],
+};
+const SCENARIO_FEATURES = {
+    quasar: ['BLACK_HOLE', 'DISK', 'EVENTS', 'QUASAR'],
+    dyson: ['STAR', 'DYSON'],
+    crab: ['NEUTRON', 'CRAB'],
+    magnetar: ['NEUTRON', 'MAGNETAR', 'SHEET'],
+    supernova: ['STAR', 'NEUTRON', 'EVENTS'],
+    merger: ['BLACK_HOLE', 'DISK', 'SHEET'],
+    kilonova: ['BLACK_HOLE', 'DISK', 'SHEET', 'EVENTS'],
+    disruption: ['BLACK_HOLE', 'DISK', 'SHEET', 'EVENTS'],
+    devour: ['DISK', 'EVENTS'],
+    system: ['SYSTEM'],
+    spiral: ['GALAXY'],
+    collision: ['GALAXY'],
+    cluster: ['GALAXY'],
+};
 export const PAIR_STAND_INS = {'quasar': 'black-hole', 'dyson': 'star', 'crab': 'neutron-star'};
 
 export const KINDS = {'black-hole': 0, 'neutron-star': 1, 'star': 2, 'wormhole': 3, 'planet': 4, 'earth': 5};
@@ -192,6 +211,15 @@ export class Scene {
         this._clock = 0;
     }
 
+    get features() {
+        const kinds = this._objects.flatMap(kind => KIND_FEATURES[kind] ?? []);
+        return [...new Set([...SCENARIO_FEATURES[this._scenario] ?? [], ...kinds])];
+    }
+
+    get slots() {
+        return this._objects.length;
+    }
+
     set sky(value) {
         this._sky = value;
     }
@@ -253,7 +281,6 @@ export class Scene {
             comet: [0, 0, 0, 0],
             cometIon: [1, 0, 0, 1],
             cometDust: [1, 0, 0, 1],
-            meteors: this._comets ? 1 : 0,
             lightColor: [1, 1, 1],
             planets: new Array(32).fill(0),
             system: 0,
@@ -268,8 +295,6 @@ export class Scene {
             moonTilt: this._sky ? moonTilt(this._sky.moonLatitude) : 0,
             magnetar: [0, 0, 0, 0],
             quasar: 0,
-            dyson: 0,
-            crab: 0,
             particles: null,
         };
         switch (this._scenario) {
@@ -361,18 +386,15 @@ export class Scene {
         state.particles = this._galaxy;
         state.distance = view.distance;
         state.lift = view.lift;
-        state.meteors = 0;
     }
 
     _dyson(state) {
         state.bodies = [body('star', [0, 0, 0], SINGLE_STAR_SCALE)];
-        state.dyson = 1;
         state.distance = DYSON_DISTANCE;
     }
 
     _crab(state) {
         state.bodies = [body('neutron-star', [0, 0, 0], CRAB_SCALE)];
-        state.crab = 1;
         state.beams = CRAB_BEAMS;
         state.distance = CRAB_DISTANCE;
         state.lift = CRAB_LIFT;

@@ -1,4 +1,8 @@
-export const SCENE_SHADER = `
+export function sceneShader(features, slots) {
+    return [...features.map(feature => `#define HAS_${feature}`), `#define SLOTS ${slots}`, SCENE_SHADER].join('\n');
+}
+
+const SCENE_SHADER = `
 uniform vec2 u_resolution;
 uniform vec3 u_camera;
 uniform float u_fov;
@@ -20,18 +24,15 @@ uniform vec4 u_kilonova;
 uniform float u_flash;
 uniform float u_fade;
 uniform float u_beams;
-uniform float u_background;
 uniform vec4 u_star;
 uniform float u_spins[2];
 uniform vec4 u_light;
 uniform vec4 u_comet;
 uniform vec4 u_comet_ion;
 uniform vec4 u_comet_dust;
-uniform float u_meteors;
 uniform sampler2D earth_map;
 uniform vec3 u_light_color;
 uniform vec4 u_planets[8];
-uniform float u_system;
 uniform vec4 u_belt;
 uniform float u_distance;
 uniform vec4 u_live;
@@ -40,10 +41,7 @@ uniform vec4 u_moons[6];
 uniform float u_moon_hosts[6];
 uniform vec4 u_magnetar;
 uniform float u_quasar;
-uniform float u_dyson;
-uniform float u_crab;
 uniform sampler2D galaxy_map;
-uniform float u_galaxy;
 
 const float PI = 3.14159265;
 const float SPIN = 2.6;
@@ -330,6 +328,7 @@ vec3 otherSky(vec3 d, vec2 du, vec2 dv) {
 
 vec3 accel(vec3 p, vec3 v) {
     vec3 a = vec3(0.0);
+#ifdef HAS_SHEET
     if (u_gw.x > 0.0) {
         vec2 radial = normalize(p.xz + vec2(1e-4));
         a.xz += radial * sin(gwPhase(p)) * u_gw.x * GW_BEND * gwReach(p) * 8.0;
@@ -339,7 +338,8 @@ vec3 accel(vec3 p, vec3 v) {
         float shell = (r - u_burst.x) / u_burst.y;
         a += p / max(r, 1e-3) * u_burst.z * BURST_BEND * exp(-shell * shell);
     }
-    for (int i = 0; i < 2; i++) {
+#endif
+    for (int i = 0; i < SLOTS; i++) {
         if (float(i) >= u_count)
             break;
         if (abs(u_kinds[i] - 2.0) < 0.5 || u_kinds[i] > 3.5)
@@ -349,11 +349,13 @@ vec3 accel(vec3 p, vec3 v) {
         float r2 = dot(d, d);
         float r = sqrt(r2);
         a -= 1.5 * u_bodies[i].w * dot(c, c) * d / (r2 * r2 * r);
+#ifdef HAS_BLACK_HOLE
         if (u_kinds[i] < 0.5 && u_spins[i] > 0.0) {
             vec3 n = d / r;
             vec3 spin = vec3(0.0, 0.25 * u_spins[i] * u_bodies[i].w * u_bodies[i].w, 0.0);
             a -= FRAME_DRAG * cross(v, (3.0 * dot(spin, n) * n - spin) / (r2 * r));
         }
+#endif
     }
     return a;
 }
@@ -981,7 +983,7 @@ vec4 renderPixel(vec2 st) {
     float nearTransmittance[2];
     vec3 nearPoint[2];
     float linger[2];
-    for (int i = 0; i < 2; i++) {
+    for (int i = 0; i < SLOTS; i++) {
         axes[i] = magneticAxis(float(i));
         closest[i] = 1e6;
         impact[i] = 1e6;
@@ -1007,38 +1009,56 @@ vec4 renderPixel(vec2 st) {
 
     for (int n = 0; n < MAX_STEPS; n++) {
         float nearest = 1e6;
-        for (int i = 0; i < 2; i++) {
+        for (int i = 0; i < SLOTS; i++) {
             if (float(i) >= u_count)
                 break;
             nearest = min(nearest, length(pos - u_bodies[i].xyz));
         }
         float dt = max(STEP_SCALE * nearest * max(1.0, length(pos) / 25.0), 0.02);
+#ifdef HAS_COMET
         if (comet)
             dt = min(dt, max(MIN_COMET_STEP, COMET_STEP * cometDistance(pos)));
-        if (u_crab > 0.5 && dot(pos, pos) < square(CRAB_RADIUS * 1.2))
+#endif
+#ifdef HAS_CRAB
+        if (dot(pos, pos) < square(CRAB_RADIUS * 1.2))
             dt = min(dt, CRAB_STEP);
+#endif
 
-        for (int i = 0; i < 2; i++) {
+        for (int i = 0; i < SLOTS; i++) {
             if (float(i) >= u_count)
                 break;
             vec3 d = (pos - u_bodies[i].xyz) / u_bodies[i].w;
+#ifdef HAS_BLACK_HOLE
             if (u_kinds[i] < 0.5 && dot(d, d) < LINGER_RADIUS * LINGER_RADIUS)
                 linger[i] += dt / u_bodies[i].w;
+#endif
+#ifdef HAS_EARTH
             if (u_kinds[i] > 4.5)
                 color += transmittance * satelliteGlow(pos, u_bodies[i].xyz, u_bodies[i].w) * dt;
+#endif
+#ifdef HAS_NEUTRON
             if (abs(u_kinds[i] - 1.0) < 0.5 && dot(d, d) < BEAM_LENGTH * BEAM_LENGTH)
                 color += transmittance * pulsarBeam(d, axes[i]) * dt / u_bodies[i].w;
+#endif
+#ifdef HAS_MAGNETAR
             if (abs(u_kinds[i] - 1.0) < 0.5 && u_magnetar.x > 0.0)
                 color += transmittance * fieldLoops(d, axes[i]) * dt / u_bodies[i].w;
+#endif
         }
-        if (u_quasar > 0.5)
-            color += transmittance * quasarHost(pos) * dt;
-        if (u_crab > 0.5)
-            color += transmittance * crabGlow(pos) * dt;
+#ifdef HAS_QUASAR
+        color += transmittance * quasarHost(pos) * dt;
+#endif
+#ifdef HAS_CRAB
+        color += transmittance * crabGlow(pos) * dt;
+#endif
+#ifdef HAS_EVENTS
         if (events)
             color += transmittance * eventGlow(pos) * dt;
+#endif
+#ifdef HAS_COMET
         if (comet)
             color += transmittance * cometGlow(pos, rayPitch * length(pos - origin)) * dt;
+#endif
 
         vec3 halfVel = vel + a * (0.5 * dt);
         vec3 next = pos + halfVel * dt;
@@ -1046,31 +1066,41 @@ vec4 renderPixel(vec2 st) {
         vel = halfVel + nextA * (0.5 * dt);
         a = nextA;
 
-        if (u_dyson > 0.5) {
-            vec4 panel = dysonHit(pos, next, u_bodies[0].xyz, u_bodies[0].w);
-            color += transmittance * panel.rgb * panel.a;
-            transmittance *= 1.0 - panel.a;
-        }
+#ifdef HAS_DYSON
+        vec4 panel = dysonHit(pos, next, u_bodies[0].xyz, u_bodies[0].w);
+        color += transmittance * panel.rgb * panel.a;
+        transmittance *= 1.0 - panel.a;
+#endif
 
+#if defined(HAS_DISK) || defined(HAS_SHEET) || defined(HAS_SYSTEM)
         if (pos.y * next.y < 0.0) {
             vec3 hit = mix(pos, next, pos.y / (pos.y - next.y));
             vec3 hitDir = normalize(vel);
-            for (int i = 0; i < 2; i++) {
+#ifdef HAS_DISK
+            for (int i = 0; i < SLOTS; i++) {
                 if (float(i) >= u_count)
                     break;
                 vec4 disk = diskSample((hit - u_bodies[i].xyz) / u_bodies[i].w, hitDir, u_disks[i]);
                 color += transmittance * disk.rgb;
                 transmittance *= 1.0 - disk.a;
             }
+#endif
+#ifdef HAS_SHEET
             if (sheet)
                 color += transmittance * spacetimeSheet(hit, hitDir);
-            if (u_system > 0.5 && !planetAhead(pos, hit))
+#endif
+#ifdef HAS_SYSTEM
+            if (!planetAhead(pos, hit))
                 color += transmittance * systemPlane(hit, hitDir);
+#endif
         }
+#endif
 
-        for (int i = 0; i < 2; i++) {
+#if defined(HAS_EARTH) || defined(HAS_PLANET)
+        for (int i = 0; i < SLOTS; i++) {
             if (float(i) >= u_count)
                 break;
+#ifdef HAS_EARTH
             if (u_kinds[i] > 4.5) {
                 vec4 earthMoon = earthMoonHit(pos, next, u_bodies[i].xyz, u_bodies[i].w);
                 if (earthMoon.a > 0.0 && !captured) {
@@ -1080,7 +1110,9 @@ vec4 renderPixel(vec2 st) {
                 }
                 continue;
             }
-            if (u_kinds[i] < 3.5)
+#endif
+#ifdef HAS_PLANET
+            if (u_kinds[i] < 3.5 || u_kinds[i] > 4.5)
                 continue;
             vec3 center = u_bodies[i].xyz;
             vec3 axis = normalize(PLANET_AXIS);
@@ -1098,9 +1130,12 @@ vec4 renderPixel(vec2 st) {
                 captured = true;
                 capturedBy = float(i);
             }
+#endif
         }
+#endif
 
-        if (u_system > 0.5 && !captured && (min(abs(pos.y), abs(next.y)) < 3.5 || pos.y * next.y < 0.0)) {
+#ifdef HAS_SYSTEM
+        if (!captured && (min(abs(pos.y), abs(next.y)) < 3.5 || pos.y * next.y < 0.0)) {
             vec3 segment = next - pos;
             float span = length(segment);
             vec3 sdir = segment / span;
@@ -1155,10 +1190,11 @@ vec4 renderPixel(vec2 st) {
                 centerInFront = dot(pos - u_bodies[0].xyz, sdir) > 0.0;
             }
         }
+#endif
 
         pos = next;
         nearOrigin = min(nearOrigin, length(pos));
-        for (int i = 0; i < 2; i++) {
+        for (int i = 0; i < SLOTS; i++) {
             if (float(i) >= u_count)
                 break;
             vec3 d = pos - u_bodies[i].xyz;
@@ -1176,29 +1212,44 @@ vec4 renderPixel(vec2 st) {
             if (u_kinds[i] < 0.5 && r < u_bodies[i].w * 0.5 * (1.0 + sqrt(1.0 - u_spins[i] * u_spins[i]))) {
                 captured = true;
                 capturedBy = float(i);
-            } else if (abs(u_kinds[i] - 1.0) < 0.5 && r < NEUTRON_RADIUS * u_bodies[i].w) {
+            }
+#ifdef HAS_NEUTRON
+            else if (abs(u_kinds[i] - 1.0) < 0.5 && r < NEUTRON_RADIUS * u_bodies[i].w) {
                 color += transmittance * neutronSurface(d / r, normalize(vel), float(i));
                 captured = true;
                 capturedBy = float(i);
-            } else if (abs(u_kinds[i] - 2.0) < 0.5 && r < STAR_RADIUS * u_bodies[i].w) {
+            }
+#endif
+#ifdef HAS_STAR
+            else if (abs(u_kinds[i] - 2.0) < 0.5 && r < STAR_RADIUS * u_bodies[i].w) {
                 color += transmittance * starSurface(d / r, normalize(vel), float(i));
                 captured = true;
                 capturedBy = float(i);
-            } else if (u_kinds[i] > 4.5 && r < EARTH_RADIUS * u_bodies[i].w) {
+            }
+#endif
+#ifdef HAS_EARTH
+            else if (u_kinds[i] > 4.5 && r < EARTH_RADIUS * u_bodies[i].w) {
                 float shade = eclipseBy(pos, earthMoonCenter(u_bodies[i].xyz, u_bodies[i].w), EARTH_RADIUS * u_bodies[i].w * 0.27);
                 color += transmittance * earthSurface(d / r, pos, normalize(vel), float(i), shade, u_bodies[i].xyz);
                 captured = true;
                 capturedBy = float(i);
-            } else if (abs(u_kinds[i] - 4.0) < 0.5 && r < PLANET_RADIUS * u_bodies[i].w) {
+            }
+#endif
+#ifdef HAS_PLANET
+            else if (abs(u_kinds[i] - 4.0) < 0.5 && r < PLANET_RADIUS * u_bodies[i].w) {
                 color += transmittance * planetSurface(d / r, pos, normalize(vel), u_bodies[i].xyz, u_bodies[i].w, float(i));
                 captured = true;
                 capturedBy = float(i);
-            } else if (abs(u_kinds[i] - 3.0) < 0.5 && r < WORMHOLE_THROAT * u_bodies[i].w) {
+            }
+#endif
+#ifdef HAS_WORMHOLE
+            else if (abs(u_kinds[i] - 3.0) < 0.5 && r < WORMHOLE_THROAT * u_bodies[i].w) {
                 portal = reflect(normalize(vel), d / r);
                 through = true;
                 captured = true;
                 capturedBy = float(i);
             }
+#endif
         }
 
         if (captured || transmittance < 0.01)
@@ -1212,30 +1263,47 @@ vec4 renderPixel(vec2 st) {
     vec2 sky = cubeFace(escape, face);
     vec2 du = dFdx(sky);
     vec2 dv = dFdy(sky);
+#ifdef HAS_WORMHOLE
     if (through) {
         color += transmittance * otherSky(portal, du, dv);
-    } else if (!captured) {
-        vec4 galaxy = u_background > 1.5 ? emissionNebula(escape) : u_background > 0.5 ? milkyWay(escape) : vec4(nebula(escape), 0.0);
+    } else
+#endif
+    if (!captured) {
+#if defined(HAS_NEBULA)
+        vec4 galaxy = emissionNebula(escape);
+#elif defined(HAS_MILKY_WAY)
+        vec4 galaxy = milkyWay(escape);
+#else
+        vec4 galaxy = vec4(nebula(escape), 0.0);
+#endif
         color += transmittance * (galaxy.rgb + starfield(sky, face, du, dv, 1.0 + 4.0 * galaxy.a, 0.0));
-        if (u_meteors > 0.5)
-            color += transmittance * meteor(escape, rayPitch);
+#ifdef HAS_METEORS
+        color += transmittance * meteor(escape, rayPitch);
+#endif
     }
 
-    for (int i = 0; i < 2; i++) {
+    for (int i = 0; i < SLOTS; i++) {
         if (float(i) >= u_count)
             break;
         float scale = u_bodies[i].w;
         if (captured && abs(capturedBy - float(i)) > 0.5 && !(capturedBy > 9.5 && centerInFront))
             continue;
         if (u_kinds[i] < 0.5) {
+#ifdef HAS_BLACK_HOLE
             float offset = impact[i] / scale - CRITICAL_IMPACT;
             float ring = offset > 0.0 ? exp(-offset * 40.0) + exp(-offset * 8.0) * 0.08 : exp(offset * 120.0);
             ring = mix(ring, smoothstep(3.0, 5.5, linger[i]), smoothstep(0.0, 0.15, u_spins[i]));
             color += nearTransmittance[i] * vec3(1.0, 0.84, 0.66) * ring * 1.4;
-        } else if (abs(u_kinds[i] - 1.0) < 0.5 && closest[i] > NEUTRON_RADIUS * scale) {
+#endif
+        }
+#ifdef HAS_NEUTRON
+        else if (abs(u_kinds[i] - 1.0) < 0.5 && closest[i] > NEUTRON_RADIUS * scale) {
             float halo = exp(-(closest[i] / (NEUTRON_RADIUS * scale) - 1.0) * 6.0);
             color += nearTransmittance[i] * vec3(0.55, 0.72, 1.0) * halo * 0.3;
-        } else if (u_kinds[i] > 4.5 && closest[i] > EARTH_RADIUS * scale) {
+        }
+#endif
+#ifdef HAS_EARTH
+        else if (u_kinds[i] > 4.5 && closest[i] > EARTH_RADIUS * scale) {
             vec3 limb = normalize(nearPoint[i]);
             float air = exp(-(closest[i] / (EARTH_RADIUS * scale) - 1.0) * 30.0)
                 * smoothstep(-0.25, 0.35, dot(limb, lightFrom(u_bodies[i].xyz + nearPoint[i])));
@@ -1246,19 +1314,26 @@ vec4 renderPixel(vec2 st) {
             float curtain = aurora(bodyFrame(limb, axis, earthSpin(axis, sun, float(i))), float(i)) * exp(-height * 25.0)
                 * (1.0 - smoothstep(-0.2, 0.2, dot(limb, lightFrom(u_bodies[i].xyz + nearPoint[i]))));
             color += nearTransmittance[i] * AURORA_COLOR * curtain * 0.9;
-        } else if (abs(u_kinds[i] - 3.0) < 0.5 && closest[i] > WORMHOLE_THROAT * scale) {
+        }
+#endif
+#ifdef HAS_WORMHOLE
+        else if (abs(u_kinds[i] - 3.0) < 0.5 && closest[i] > WORMHOLE_THROAT * scale) {
             float rim = exp(-(closest[i] / (WORMHOLE_THROAT * scale) - 1.0) * 12.0);
             color += nearTransmittance[i] * vec3(0.6, 0.75, 1.0) * rim * 0.8;
-        } else if (abs(u_kinds[i] - 2.0) < 0.5 && closest[i] > STAR_RADIUS * scale) {
+        }
+#endif
+#ifdef HAS_STAR
+        else if (abs(u_kinds[i] - 2.0) < 0.5 && closest[i] > STAR_RADIUS * scale) {
             float corona = exp(-(closest[i] / (STAR_RADIUS * scale) - 1.0) * 7.0);
             color += nearTransmittance[i] * vec3(1.0, 0.75, 0.45) * corona * 0.5;
         }
+#endif
     }
 
-    if (u_galaxy > 0.5) {
-        vec3 stars = texture2D(galaxy_map, st).rgb;
-        color += stars * stars * GALAXY_RANGE;
-    }
+#ifdef HAS_GALAXY
+    vec3 stars = texture2D(galaxy_map, st).rgb;
+    color += stars * stars * GALAXY_RANGE;
+#endif
     color += u_flash * exp(-nearOrigin / 2.0) * vec3(1.0, 0.95, 0.9) * 1.5;
     color *= u_fade;
     color = vec3(1.0) - exp(-color * u_exposure);

@@ -130,12 +130,14 @@ At 30 fps that is 2 – 6 % of the GPU. The Milky Way adds about 0.3 ms.
 
 Deep sky mode also moves its stars on the CPU: about 3 ms per frame and monitor on a 1560×1040 screen with character size 1.
 
+The shader is compiled only with the parts the current scene needs, so the first frame after login or after changing the scene compiles in 0.2 – 1 s instead of about 6 s. Mesa caches the result, so later logins with the same settings skip it.
+
 ## How it works
 
 1. Each `Meta.BackgroundActor` gets a child actor that covers it.
 2. The child shows a `Clutter.Content` shared by every background on the same monitor.
 3. A timer marks the content dirty. On the next paint it renders two offscreen passes once.
-4. The scene pass traces 2×2 light rays per character cell. Each ray is stepped through the bending of space around every black hole and neutron star, and the pass finds where it crosses a disk. The disks are colored with noise, heat and Doppler shift. A neutron star has a glowing surface and two pulsar beams along its tilted, spinning magnetic axis. A star's own light bending is too small to see, so rays pass it straight until they hit its surface.
+4. The scene pass is built for the current scene: only the objects, effects and sky it uses are compiled in. It traces 2×2 light rays per character cell. Each ray is stepped through the bending of space around every black hole and neutron star, and the pass finds where it crosses a disk. The disks are colored with noise, heat and Doppler shift. A neutron star has a glowing surface and two pulsar beams along its tilted, spinning magnetic axis. A star's own light bending is too small to see, so rays pass it straight until they hit its surface.
 5. In deep sky mode, the CPU moves the stars, projects them onto the character grid and uploads their light as a small texture that the scene pass adds.
 6. The ASCII pass picks a character for each cell by brightness and draws it from a 5×7 bitmap font, in the cell's color.
 7. Each background draws the result, with the rounded corners the overview uses.

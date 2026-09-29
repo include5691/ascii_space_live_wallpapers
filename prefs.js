@@ -43,6 +43,7 @@ const EVENT_PAIRS = new Set([
     'black-hole+neutron-star',
     'black-hole+star',
     'neutron-star+star',
+    'black-hole+earth',
 ]);
 
 function selectedObjects(settings) {
@@ -60,7 +61,7 @@ function isSystem(settings) {
 
 function hasEvents(objects, system = false) {
     if (system)
-        return false;
+        return objects[0] !== 'star';
     if (objects.length === 1)
         return objects[0] === 'star' || objects[0] === 'neutron-star';
     return EVENT_PAIRS.has([...objects].sort().join('+'));

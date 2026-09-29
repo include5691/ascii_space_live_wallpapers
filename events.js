@@ -14,6 +14,7 @@ const BLACK_HOLE_DISK_INNER = 2.1;
 const NEUTRON_DISK_INNER = 5.5;
 const NEUTRON_RADIUS = 2.5;
 const STAR_RADIUS = 5;
+const EARTH_RADIUS = 3;
 const WORMHOLE_THROAT = 2.4;
 const ANGULAR_SPEED = 2 * Math.PI / 60;
 const MIN_SEPARATION = 2.6;
@@ -62,7 +63,10 @@ const SCENARIO_FEATURES = {
     kilonova: ['BLACK_HOLE', 'DISK', 'SHEET', 'EVENTS'],
     disruption: ['BLACK_HOLE', 'DISK', 'SHEET', 'EVENTS'],
     devour: ['DISK', 'EVENTS'],
-    system: ['SYSTEM'],
+    'system': ['SYSTEM'],
+    'system-devour': ['SYSTEM', 'EVENTS'],
+    'system-escape': ['SYSTEM'],
+    'system-wind': ['SYSTEM', 'WIND'],
     spiral: ['GALAXY'],
     collision: ['GALAXY'],
     cluster: ['GALAXY'],
@@ -101,6 +105,18 @@ const SYSTEM_MOONS = [
     {host: 4, orbit: 2.25, radius: 0.15, period: 74, phase: 0.35},
     {host: 5, orbit: 2.5, radius: 0.16, period: 52, phase: 0.65},
 ];
+const SYSTEM_FATES = {'black-hole': 'system-devour', 'wormhole': 'system-escape', 'neutron-star': 'system-wind'};
+const DEVOUR_START = 4;
+const DEVOUR_GAP = 12;
+const DEVOUR_FALL = 7;
+const DEVOUR_TEAR = 3;
+const DEVOUR_AFTERMATH = 15;
+const TIDAL_REACH = 3.8;
+const MAX_SPIN_UP = 40;
+const ESCAPE_TIME = 60;
+const ESCAPE_GRAVITY = 0.25;
+const ESCAPE_STEP = 0.05;
+const SYSTEM_DEVOUR_TIME = DEVOUR_START + DEVOUR_GAP * 7 + DEVOUR_FALL + 7 + DEVOUR_TEAR + DEVOUR_AFTERMATH;
 const SYSTEM_CENTERS = {
     'star': {scale: 0.5, light: [1, 0.97, 0.9]},
     'black-hole': {scale: 0.6, light: [0.8, 0.58, 0.36], disk: 5.5},
@@ -113,6 +129,7 @@ const SCENARIOS = {
     'neutron-star+neutron-star': 'kilonova',
     'black-hole+neutron-star': 'disruption',
     'black-hole+star': 'devour',
+    'black-hole+earth': 'devour',
     'neutron-star+star': 'devour',
 };
 
@@ -123,6 +140,8 @@ const DURATIONS = {
     devour: FEED_TIME + PLUNGE_TIME + AFTERMATH_TIME,
     supernova: EXPLOSION_TIME + REMNANT_TIME,
     collision: COLLISION_TIME,
+    'system-devour': SYSTEM_DEVOUR_TIME,
+    'system-escape': ESCAPE_TIME,
 };
 
 const smooth = (edge0, edge1, x) => {
@@ -174,8 +193,23 @@ function body(kind, position, scale, gain = kind === 'black-hole' ? 1 : 0, outer
     return {kind, position, scale, disk: disk(kind, outer, gain)};
 }
 
+const RADII = {'star': STAR_RADIUS, 'earth': EARTH_RADIUS};
+
 function radiusOf(kind, scale) {
-    return (kind === 'star' ? STAR_RADIUS : NEUTRON_RADIUS) * scale;
+    return (RADII[kind] ?? NEUTRON_RADIUS) * scale;
+}
+
+function devourStage(index, orbit, t) {
+    const start = DEVOUR_START + DEVOUR_GAP * index;
+    const tear = start + DEVOUR_FALL + index;
+    const fall = Math.min(Math.max((t - start) / (tear - start), 0), 1) ** 2;
+    const torn = smooth(tear, tear + DEVOUR_TEAR, t);
+    return {
+        start,
+        tear,
+        reach: t < tear ? mix(orbit, TIDAL_REACH, fall) : mix(TIDAL_REACH, TIDAL_REACH * 0.4, torn),
+        size: 1 - torn,
+    };
 }
 
 function singleScenario(kind, events) {
@@ -195,7 +229,7 @@ export class Scene {
         this._moonTime = 0;
         this._sky = null;
         if (mode === 'system')
-            this._scenario = 'system';
+            this._scenario = events ? SYSTEM_FATES[objects[0]] ?? 'system' : 'system';
         else if (mode === 'galaxy')
             this._scenario = GALAXY_SCENARIOS[objects[0]] ? objects[0] : 'spiral';
         else if (objects.length === 1)
@@ -242,7 +276,8 @@ export class Scene {
         this._time += dt;
         this._clock += realDt;
         let step = dt;
-        if (duration && this._time >= duration) {
+        const wrapped = duration && this._time >= duration;
+        if (wrapped) {
             this._time %= duration;
             this._looped = true;
             this._cycle++;
@@ -255,8 +290,18 @@ export class Scene {
         else if (this._galaxy)
             this._galaxy.update(this._time);
         this._moonTime += dt;
-        this._planetAngles = this._planetAngles.map((angle, index) =>
-            (angle - dt * 2 * Math.PI / (SYSTEM_YEAR * Math.sqrt(SYSTEM_PLANETS[index].years))) % (2 * Math.PI));
+        if (wrapped)
+            this._planetAngles = SYSTEM_PLANETS.map(planet => planet.start);
+        if (wrapped)
+            this._escape = null;
+        if (this._scenario === 'system-escape' && this._escape)
+            this._advanceEscape(step);
+        this._planetAngles = this._planetAngles.map((angle, index) => {
+            const {orbit, years} = SYSTEM_PLANETS[index];
+            const reach = this._scenario === 'system-devour' ? devourStage(index, orbit, this._time).reach : orbit;
+            const spinUp = Math.min((orbit / reach) ** 1.5, MAX_SPIN_UP);
+            return (angle - dt * spinUp * 2 * Math.PI / (SYSTEM_YEAR * Math.sqrt(years))) % (2 * Math.PI);
+        });
         const speed = ANGULAR_SPEED * (SEPARATION / this._separation()) ** 1.5;
         this._angle = (this._angle - dt * speed) % (2 * Math.PI);
     }
@@ -289,6 +334,7 @@ export class Scene {
             lift: 0,
             centerRadius: 0,
             centerMass: 0,
+            orbits: new Array(16).fill(0),
             moons: new Array(24).fill(0),
             moonHosts: new Array(6).fill(-1),
             live: this._sky ? [1, this._sky.subsolarLongitude, this._sky.moonPhase, this._sky.declination] : [0, 0, 0, 0],
@@ -302,6 +348,9 @@ export class Scene {
             this._single(state);
             break;
         case 'system':
+        case 'system-devour':
+        case 'system-escape':
+        case 'system-wind':
             this._solarSystem(state);
             break;
         case 'devour':
@@ -338,7 +387,7 @@ export class Scene {
         }
 
         const star = state.bodies.find(candidate => candidate.kind === 'star');
-        if (star && this._scenario !== 'supernova' && this._scenario !== 'system')
+        if (star && this._scenario !== 'supernova' && this._mode !== 'system')
             state.light = [...star.position, 1];
         this._comet(state);
 
@@ -442,6 +491,13 @@ export class Scene {
                 return [Math.cos(angle) * planet.orbit, 0, Math.sin(angle) * planet.orbit, planet.radius];
             });
         }
+        state.orbits = SYSTEM_PLANETS.flatMap(planet => [planet.orbit, 1]);
+        state.system = 1;
+        state.belt = [...SYSTEM_BELT, 1, 0];
+        if (this._scenario === 'system-devour')
+            this._devourPlanets(state);
+        else if (this._scenario === 'system-escape')
+            this._escapePlanets(state);
         SYSTEM_MOONS.forEach((moon, index) => {
             const host = state.planets.slice(moon.host * 4, moon.host * 4 + 4);
             const reach = moon.orbit * host[3];
@@ -455,14 +511,67 @@ export class Scene {
                 host[2] + Math.sin(angle) * reach * level, moon.radius * host[3]);
             state.moonHosts[index] = moon.host;
         });
-        state.system = 1;
-        state.belt = [...SYSTEM_BELT, 1, 0];
         state.centerRadius = {'star': STAR_RADIUS, 'black-hole': BLACK_HOLE_SHADOW,
             'neutron-star': NEUTRON_RADIUS, 'wormhole': WORMHOLE_THROAT}[kind] * center.scale;
         state.centerMass = kind === 'star' ? 0 : center.scale;
         state.distance = SYSTEM_DISTANCE;
         state.lift = SYSTEM_LIFT;
         state.fov = SYSTEM_FOV;
+    }
+
+    _devourPlanets(state) {
+        const t = this._time;
+        const [hole] = state.bodies;
+        let feeding = 0;
+        SYSTEM_PLANETS.forEach((planet, index) => {
+            const stage = devourStage(index, planet.orbit, t);
+            const angle = this._planetAngles[index] + (this._sky ? -this._sky.planetLongitudes[index] - planet.start : 0);
+            state.planets.splice(index * 4, 4, Math.cos(angle) * stage.reach, 0, Math.sin(angle) * stage.reach,
+                planet.radius * stage.size);
+            state.orbits[index * 2 + 1] = 1 - smooth(stage.start, stage.start + 2, t);
+            if (t > stage.tear - 2 && t < stage.tear + DEVOUR_TEAR + 1) {
+                const strength = smooth(stage.tear - 2, stage.tear, t) * (1 - smooth(stage.tear + DEVOUR_TEAR, stage.tear + DEVOUR_TEAR + 1, t));
+                state.stream = [1.5 * strength, 0.3, 0.6 + planet.radius, stage.reach];
+                state.streamCenter = [0, 0, hole.disk[0] * hole.scale, angle];
+            }
+            const since = t - stage.tear - DEVOUR_TEAR;
+            state.flash = Math.max(state.flash, 0.8 * decay(since, 0.6));
+            feeding += smooth(stage.tear - 2, stage.tear + DEVOUR_TEAR, t) * (1 - smooth(0, 1, since)) + decay(since, 6) * smooth(0, 1, since);
+        });
+        hole.disk[2] *= 1 + 1.2 * feeding;
+    }
+
+    _advanceEscape(dt) {
+        for (let left = dt; left > 1e-6; left -= ESCAPE_STEP) {
+            const step = Math.min(left, ESCAPE_STEP);
+            for (const planet of this._escape) {
+                const [x, z] = planet.position;
+                const pull = planet.gravity / Math.hypot(x, z) ** 3;
+                planet.velocity[0] -= x * pull * step;
+                planet.velocity[1] -= z * pull * step;
+                planet.position[0] += planet.velocity[0] * step;
+                planet.position[1] += planet.velocity[1] * step;
+            }
+        }
+    }
+
+    _escapePlanets(state) {
+        this._escape ??= SYSTEM_PLANETS.map((planet, index) => {
+            const angle = Math.atan2(state.planets[index * 4 + 2], state.planets[index * 4]);
+            const speed = 2 * Math.PI / (SYSTEM_YEAR * Math.sqrt(planet.years));
+            return {
+                position: [Math.cos(angle) * planet.orbit, Math.sin(angle) * planet.orbit],
+                velocity: [Math.sin(angle) * planet.orbit * speed, -Math.cos(angle) * planet.orbit * speed],
+                gravity: ESCAPE_GRAVITY * speed * speed * planet.orbit ** 3,
+            };
+        });
+        const fade = 1 - smooth(0, 6, this._time);
+        this._escape.forEach((planet, index) => {
+            state.planets[index * 4] = planet.position[0];
+            state.planets[index * 4 + 2] = planet.position[1];
+            state.orbits[index * 2 + 1] = fade;
+        });
+        state.belt[2] = 1 - smooth(0, 20, this._time);
     }
 
     _comet(state) {
@@ -606,7 +715,7 @@ export class Scene {
     _devour(state) {
         const t = this._time;
         const end = FEED_TIME + PLUNGE_TIME;
-        const victim = this._objects.indexOf('star');
+        const victim = this._objects.findIndex(kind => kind === 'star' || kind === 'earth');
         const eater = 1 - victim;
         const eaterKind = this._objects[eater];
         const separation = this._separation();

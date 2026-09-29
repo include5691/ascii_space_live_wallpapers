@@ -34,6 +34,7 @@ uniform sampler2D earth_map;
 uniform vec3 u_light_color;
 uniform vec4 u_planets[8];
 uniform vec4 u_belt;
+uniform vec2 u_orbits[8];
 uniform float u_distance;
 uniform vec4 u_live;
 uniform float u_moon_tilt;
@@ -77,6 +78,12 @@ const vec3 CRAB_SQUASH = vec3(1.0, 0.8, 0.72);
 const vec3 CRAB_AXIS = vec3(0.0, 1.0, 0.0);
 const float GALAXY_RANGE = 4.0;
 const float COMET_STEP = 0.35;
+const float WIND_REACH = 16.0;
+const float WIND_DISTANCE = 8.0;
+const float WIND_GAIN = 0.3;
+const float WIND_STEP = 0.35;
+const float WIND_HEIGHT = 3.0;
+const float WIND_RANGE = 46.0;
 const float COMET_CORE = 0.03;
 const float METEOR_WIDTH = 0.00002;
 const float MIN_COMET_STEP = 0.02;
@@ -656,7 +663,7 @@ float eclipseBy(vec3 p, vec3 blocker, float radius) {
     vec3 light = lightFrom(p);
     vec3 toBlocker = blocker - p;
     float along = dot(toBlocker, light);
-    if (along <= 0.0 || (u_light.w > 0.5 && along > length(u_light.xyz - p)))
+    if (radius <= 0.0 || along <= 0.0 || (u_light.w > 0.5 && along > length(u_light.xyz - p)))
         return 1.0;
     return mix(0.06, 1.0, smoothstep(radius * 0.6, radius * 1.3, length(toBlocker - light * along)));
 }
@@ -718,13 +725,19 @@ vec3 earthMoonCenter(vec3 center, float scale) {
     return center + vec3(cos(angle) * cos(u_moon_tilt), sin(u_moon_tilt), sin(angle) * cos(u_moon_tilt)) * reach;
 }
 
-vec4 earthMoonHit(vec3 from, vec3 to, vec3 center, float scale) {
+float moonKept(float index) {
+    return abs(index - u_tidal.w) < 0.5 ? 1.0 - smoothstep(1.4, 2.0, u_tidal.x) : 1.0;
+}
+
+vec4 earthMoonHit(vec3 from, vec3 to, vec3 center, float scale, float kept) {
+    if (kept <= 0.0)
+        return vec4(0.0);
     vec3 segment = to - from;
     float span = length(segment);
     vec3 dir = segment / span;
     float radius = EARTH_RADIUS * scale;
     vec3 moon = earthMoonCenter(center, scale);
-    float t = sphereEntry(from, dir, span, moon, radius * 0.27);
+    float t = sphereEntry(from, dir, span, moon, radius * 0.27 * kept);
     if (t < 0.0)
         return vec4(0.0);
     vec3 hit = from + dir * t;
@@ -824,7 +837,7 @@ vec3 systemPlane(vec3 hit, vec3 dir) {
     float view = 0.25 / max(abs(dir.y), 0.2);
     float lines = 0.0;
     for (int k = 0; k < 8; k++)
-        lines += exp(-square((r - length(u_planets[k].xz)) / ORBIT_LINE_WIDTH));
+        lines += u_orbits[k].y * exp(-square((r - u_orbits[k].x) / ORBIT_LINE_WIDTH));
     vec3 glow = vec3(0.4, 0.45, 0.6) * lines * ORBIT_LINE_GAIN * view;
     if (r > u_belt.x && r < u_belt.y) {
         float turns = fract(atan(hit.z, hit.x) / (2.0 * PI) + 2.0 * u_time / TIME_PERIOD);
@@ -832,6 +845,26 @@ vec3 systemPlane(vec3 hit, vec3 dir) {
         glow += vec3(0.8, 0.75, 0.65) * step(0.8, h.x) * (0.4 + h.y) * 0.5 * u_belt.z;
     }
     return glow;
+}
+
+vec3 windTails(vec3 p) {
+    vec3 glow = vec3(0.0);
+    for (int k = 0; k < 8; k++) {
+        vec4 planet = u_planets[k];
+        if (planet.w <= 0.0)
+            continue;
+        vec3 away = normalize(planet.xyz);
+        vec3 q = p - planet.xyz;
+        float along = dot(q, away);
+        if (along < 0.0 || along > WIND_REACH * planet.w)
+            continue;
+        float width = planet.w * 0.5 + 0.1 * along;
+        float perp = length(q - away * along) / width;
+        if (perp < 3.0)
+            glow += exp(-perp * perp) * exp(-along / (5.0 * planet.w)) * WIND_DISTANCE / length(planet.xyz);
+    }
+    float gust = 0.8 + 0.2 * sin(2.0 * PI * u_time / TIME_PERIOD * 40.0);
+    return vec3(0.5, 0.65, 1.0) * glow * WIND_GAIN * gust;
 }
 
 vec4 ringSample(vec3 hit, vec3 center, float planetRadius, vec3 axis, vec3 view) {
@@ -1023,6 +1056,11 @@ vec4 renderPixel(vec2 st) {
         if (dot(pos, pos) < square(CRAB_RADIUS * 1.2))
             dt = min(dt, CRAB_STEP);
 #endif
+#ifdef HAS_WIND
+        bool windy = abs(pos.y) < WIND_HEIGHT && dot(pos.xz, pos.xz) < square(WIND_RANGE);
+        if (windy)
+            dt = min(dt, WIND_STEP);
+#endif
 
         for (int i = 0; i < SLOTS; i++) {
             if (float(i) >= u_count)
@@ -1034,7 +1072,7 @@ vec4 renderPixel(vec2 st) {
 #endif
 #ifdef HAS_EARTH
             if (u_kinds[i] > 4.5)
-                color += transmittance * satelliteGlow(pos, u_bodies[i].xyz, u_bodies[i].w) * dt;
+                color += transmittance * satelliteGlow(pos, u_bodies[i].xyz, u_bodies[i].w) * moonKept(float(i)) * dt;
 #endif
 #ifdef HAS_NEUTRON
             if (abs(u_kinds[i] - 1.0) < 0.5 && dot(d, d) < BEAM_LENGTH * BEAM_LENGTH)
@@ -1050,6 +1088,10 @@ vec4 renderPixel(vec2 st) {
 #endif
 #ifdef HAS_CRAB
         color += transmittance * crabGlow(pos) * dt;
+#endif
+#ifdef HAS_WIND
+        if (windy)
+            color += transmittance * windTails(pos) * dt;
 #endif
 #ifdef HAS_EVENTS
         if (events)
@@ -1102,7 +1144,7 @@ vec4 renderPixel(vec2 st) {
                 break;
 #ifdef HAS_EARTH
             if (u_kinds[i] > 4.5) {
-                vec4 earthMoon = earthMoonHit(pos, next, u_bodies[i].xyz, u_bodies[i].w);
+                vec4 earthMoon = earthMoonHit(pos, next, u_bodies[i].xyz, u_bodies[i].w, moonKept(float(i)));
                 if (earthMoon.a > 0.0 && !captured) {
                     color += transmittance * earthMoon.rgb;
                     captured = true;
@@ -1229,7 +1271,7 @@ vec4 renderPixel(vec2 st) {
 #endif
 #ifdef HAS_EARTH
             else if (u_kinds[i] > 4.5 && r < EARTH_RADIUS * u_bodies[i].w) {
-                float shade = eclipseBy(pos, earthMoonCenter(u_bodies[i].xyz, u_bodies[i].w), EARTH_RADIUS * u_bodies[i].w * 0.27);
+                float shade = eclipseBy(pos, earthMoonCenter(u_bodies[i].xyz, u_bodies[i].w), EARTH_RADIUS * u_bodies[i].w * 0.27 * moonKept(float(i)));
                 color += transmittance * earthSurface(d / r, pos, normalize(vel), float(i), shade, u_bodies[i].xyz);
                 captured = true;
                 capturedBy = float(i);

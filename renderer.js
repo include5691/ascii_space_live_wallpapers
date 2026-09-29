@@ -32,12 +32,13 @@ const SCENE_UNIFORMS = [
     'u_bodies', 'u_disks', 'u_kinds', 'u_count', 'u_gw', 'u_burst', 'u_stream', 'u_stream_center',
     'u_tidal', 'u_jets', 'u_kilonova', 'u_flash', 'u_fade', 'u_beams', 'u_background', 'u_star',
     'u_spins', 'u_light', 'u_comet', 'u_comet_ion', 'u_comet_dust',
-    'earth_map', 'u_light_color', 'u_planets', 'u_belt', 'u_distance',
+    'earth_map', 'u_light_color', 'u_planets', 'u_belt', 'u_orbits', 'u_distance',
     'u_live', 'u_moon_tilt', 'u_moons', 'u_moon_hosts', 'u_magnetar', 'u_quasar', 'galaxy_map',
 ];
 const ASCII_UNIFORMS = ['scene', 'u_output', 'u_cells', 'u_origin', 'u_font', 'u_labels', 'u_label_text'];
 const LETTERS = 'ACEHIJMNPRSTUVY';
 const LABEL_SLOTS = 8;
+const MIN_LABEL_RADIUS = 0.05;
 
 const ROUNDED_CLIP_DECLARATIONS = `
 uniform vec4 bounds;
@@ -425,6 +426,7 @@ export const SpaceContent = GObject.registerClass({
         pipeline.set_uniform_float(uniforms.u_light_color, 3, 1, scene.lightColor);
         pipeline.set_uniform_float(uniforms.u_planets, 4, 8, scene.planets);
         pipeline.set_uniform_float(uniforms.u_belt, 4, 1, scene.belt);
+        pipeline.set_uniform_float(uniforms.u_orbits, 2, 8, scene.orbits);
         const padded = [0, 1].map(index => scene.bodies[index] ?? scene.bodies[0] ?? PLACEHOLDER_BODY);
         pipeline.set_uniform_float(uniforms.u_bodies, 4, 2, padded.flatMap(body => [...body.position, body.scale]));
         pipeline.set_uniform_float(uniforms.u_disks, 4, 2, padded.flatMap(body => [...body.disk, 0]));
@@ -509,7 +511,7 @@ export const SpaceContent = GObject.registerClass({
                 const lensing = spot && center && scene.centerMass && spot.depth > center.depth;
                 return {name, index, radius: planet[3],
                     spot: lensing ? lensed(spot, center, scene.centerMass, camera.fov, aspect) : spot};
-            }).filter(({spot}) => spot).sort((a, b) => a.spot.depth - b.spot.depth);
+            }).filter(({spot, radius}) => spot && radius > MIN_LABEL_RADIUS).sort((a, b) => a.spot.depth - b.spot.depth);
 
             for (const {name, index, radius, spot} of spots) {
                 if (center && !scene.centerMass && spot.depth > center.depth) {
@@ -530,7 +532,7 @@ export const SpaceContent = GObject.registerClass({
                 if (row === undefined || column < 1)
                     continue;
                 placed.push({row, start: column, end: column + name.length});
-                labels.splice(index * 4, 4, column, row, name.length, 0.9);
+                labels.splice(index * 4, 4, column, row, name.length, 0.9 * scene.fade);
                 [...name].forEach((letter, slot) => {
                     text[index * 8 + slot] = LETTERS.indexOf(letter) + 1;
                 });

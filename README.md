@@ -23,6 +23,10 @@ Light rays bend around the black hole, so the far side of the disk shows up abov
   - a Dyson swarm, shown alone: a Sun-like star circled by six tilted rings of solar collectors. Their sunlit faces glint on the far side, their dark backs cross the star's face, and a few panels are still missing;
   - the Crab Nebula, shown alone: a pulsar inside a blue synchrotron glow with red and yellow filaments, a bright inner ring, polar jets and ripples that run outward.
 - A solar system mode: eight planets with their own looks, faint orbit lines, an asteroid belt and Saturn's rings. The Moon circles Earth, four moons circle Jupiter and Titan circles Saturn. Their shadows cross the planets, and they go dark in the planets' shadows. The center is any object you pick: the Sun, a black hole, a neutron star or a wormhole. The center lights everything; a black hole, neutron star or wormhole also bends the light. Planet names can be shown in the same pixel font.
+- With Cosmic events on, the solar system reacts to its center:
+  - a black hole pulls the planets in one by one, tears each into a glowing stream that pours into its disk, and swallows them all, then the system starts again;
+  - a wormhole is lighter than the Sun, so the planets escape on real gravity paths and fly apart into space, then the system starts again;
+  - a neutron star is heavier than the Sun, so the planets keep orbiting, but its pulsar wind blows glowing tails off every planet.
 - A deep sky mode:
   - a spiral galaxy with a yellow bulge, blue trailing arms and pink star-forming knots, turning slowly;
   - two spiral galaxies colliding: a real gravity simulation of thousands of stars. They swing past each other, throw out long tidal tails, fall back and merge, then it starts again;
@@ -41,9 +45,10 @@ Light rays bend around the black hole, so the far side of the disk shows up abov
   | --- | --- |
   | Two black holes | They spiral in, sending gravitational waves across a glowing spacetime sheet, then merge in a flash with a shockwave ring. The new black hole rings down and grows a disk. |
   | Black hole or neutron star and a star | A stream of gas pours from the star into the compact object. The star stretches, then is torn apart and swallowed. A black hole then fires jets; a neutron star's pulsar beams blaze brighter. |
+  | Black hole and Earth | A stream of molten rock pours from the Earth into the disk. The Earth stretches, then is torn apart and swallowed, and the black hole fires jets. |
   | Two neutron stars | They spiral in and merge: a gamma-ray-burst jet, a shockwave, and a kilonova cloud of fresh heavy elements that cools from blue to red around the new black hole. |
   | Black hole and neutron star | They spiral in, the neutron star is torn apart and swallowed, and the black hole fires jets. |
-  | Two stars, or any pair with a wormhole or a planet | A calm orbit. |
+  | Two stars, or any other pair with a wormhole, a planet or Earth | A calm orbit. |
 
   Speed sets how fast orbits and events play. A black hole event takes about 2 minutes at 100 %. Turn off Cosmic events for calm scenes only.
 - Moving the cursor turns the camera. The camera eases after it.

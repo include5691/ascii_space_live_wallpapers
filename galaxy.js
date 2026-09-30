@@ -34,6 +34,28 @@ const CLUSTER_TYPES = [
     {share: 0.94, color: [1, 0.9, 0.74], glow: [0.15, 0.5]},
 ];
 
+const PILLAR_AXES = [
+    [-9, -23, 0, 4.2, -4.5, 8, 0.5, 1.8],
+    [1.5, -23, -1, 3.2, 2.5, -5, -0.5, 1.7],
+    [10, -23, -2, 2.6, 8, -12, -1.5, 1.4],
+];
+const PILLAR_SHARES = [0.5, 0.3, 0.2];
+const PILLAR_LIGHT = [0.25, 1, 0.35];
+const PILLAR_FIELD_STARS = 700;
+const PILLAR_YOUNG_STARS = 36;
+const PILLAR_HOT_STARS = 60;
+const PILLAR_BRIGHT_STARS = 5;
+const PILLAR_MOTES = 900;
+const PILLAR_CLUSTER = [15, 8.5, 4];
+const PILLAR_CLUSTER_SPREAD = [4, 1.5, 2];
+const EVAPORATION_TIME = 30;
+const EVAPORATION_LENGTH = 7;
+const TWINKLE_PERIOD = [2, 6];
+const EMBEDDED_COLOR = [1, 0.45, 0.25];
+const HOT_COLOR = [0.7, 0.8, 1];
+const HALPHA_COLOR = [0.75, 0.85, 0.35];
+const OIII_COLOR = [0.2, 0.62, 0.95];
+
 const OLD_COLOR = [1, 0.86, 0.66];
 const YOUNG_COLOR = [0.55, 0.7, 1];
 const NEBULA_COLOR = [1, 0.4, 0.55];
@@ -188,6 +210,98 @@ export class StarCluster {
             positions[index * 3] = orbits[o] * cos + orbits[o + 3] * sin;
             positions[index * 3 + 1] = orbits[o + 1] * cos + orbits[o + 4] * sin;
             positions[index * 3 + 2] = orbits[o + 2] * cos + orbits[o + 5] * sin;
+        }
+    }
+}
+
+function pillarPoint([bx, by, bz, br, tx, ty, tz, tr], h) {
+    return {
+        center: [bx + (tx - bx) * h, by + (ty - by) * h, bz + (tz - bz) * h],
+        radius: br + (tr - br) * h + 0.6 * tr * Math.exp(-(((h - 0.92) / 0.07) ** 2)),
+    };
+}
+
+function pickPillar(random) {
+    let pick = random();
+    return PILLAR_AXES[PILLAR_SHARES.findIndex(share => (pick -= share) < 0)] ?? PILLAR_AXES.at(-1);
+}
+
+function embeddedStar(random) {
+    const {center, radius} = pillarPoint(pickPillar(random), 0.1 + 0.85 * random());
+    const angle = 2 * random() - 1;
+    return {
+        position: [center[0] + 0.9 * radius * Math.sin(angle), center[1], center[2] + 0.9 * radius * Math.cos(angle)],
+        color: EMBEDDED_COLOR,
+        glow: 0.6 + 0.9 * random(),
+    };
+}
+
+function hotStar(random, bright) {
+    return {
+        position: PILLAR_CLUSTER.map((v, i) => v + gaussian(random) * PILLAR_CLUSTER_SPREAD[i]),
+        color: HOT_COLOR,
+        glow: bright ? 4 + 3 * random() : 0.3 + 0.8 * random(),
+    };
+}
+
+export class Pillars {
+    constructor(seed = 31) {
+        const random = randomStream(seed);
+        this._light = normalized(PILLAR_LIGHT);
+        this._twinkles = PILLAR_YOUNG_STARS + PILLAR_HOT_STARS;
+        this.count = PILLAR_FIELD_STARS + this._twinkles + PILLAR_MOTES;
+        this.positions = new Float32Array(this.count * 3);
+        this.colors = new Float32Array(this.count * 3);
+        this._base = new Float32Array(this._twinkles * 3);
+        this._cycles = new Float32Array(this._twinkles * 2);
+        this._motes = new Float32Array(PILLAR_MOTES * 8);
+        for (let index = 0; index < PILLAR_FIELD_STARS; index++) {
+            this.positions.set([56 * random() - 28, 34 * random() - 17, 4 + 8 * random()], index * 3);
+            setColor(this.colors, index, OLD_COLOR, 0.1 + 0.3 * random());
+        }
+        for (let k = 0; k < this._twinkles; k++) {
+            const star = k < PILLAR_YOUNG_STARS
+                ? embeddedStar(random)
+                : hotStar(random, k - PILLAR_YOUNG_STARS < PILLAR_BRIGHT_STARS);
+            this.positions.set(star.position, (PILLAR_FIELD_STARS + k) * 3);
+            setColor(this._base, k, star.color, star.glow);
+            this._cycles[k * 2] = TWINKLE_PERIOD[0] + (TWINKLE_PERIOD[1] - TWINKLE_PERIOD[0]) * random();
+            this._cycles[k * 2 + 1] = random();
+        }
+        for (let k = 0; k < PILLAR_MOTES; k++) {
+            const [, , , , x, y, z, radius] = pickPillar(random);
+            this._motes.set([
+                x + gaussian(random) * radius * 0.5, y + radius * 0.8, z + gaussian(random) * radius * 0.5,
+                gaussian(random) * 0.5, gaussian(random) * 0.5, random(),
+                1 / (EVAPORATION_TIME * (0.7 + 0.6 * random())), 0.25 + 0.45 * random(),
+            ], k * 8);
+        }
+    }
+
+    update(time) {
+        const {positions, colors} = this;
+        const light = this._light;
+        const motes = this._motes;
+        for (let k = 0; k < this._twinkles; k++) {
+            const gain = 0.75 + 0.25 * Math.sin(2 * Math.PI * (time / this._cycles[k * 2] + this._cycles[k * 2 + 1]));
+            const o = (PILLAR_FIELD_STARS + k) * 3;
+            for (let i = 0; i < 3; i++)
+                colors[o + i] = this._base[k * 3 + i] * gain;
+        }
+        const first = PILLAR_FIELD_STARS + this._twinkles;
+        for (let k = 0; k < PILLAR_MOTES; k++) {
+            const m = k * 8;
+            const age = (motes[m + 5] + time * motes[m + 6]) % 1;
+            const along = age * EVAPORATION_LENGTH;
+            const spread = 1 + 3 * age;
+            const swirl = 0.3 * Math.sin(2 * Math.PI * (2 * age + motes[m + 5]));
+            const glow = Math.sin(Math.PI * age) * motes[m + 7];
+            const o = (first + k) * 3;
+            positions[o] = motes[m] + light[0] * along + motes[m + 3] * spread + swirl;
+            positions[o + 1] = motes[m + 1] + light[1] * along;
+            positions[o + 2] = motes[m + 2] + light[2] * along + motes[m + 4] * spread;
+            for (let i = 0; i < 3; i++)
+                colors[o + i] = (HALPHA_COLOR[i] + (OIII_COLOR[i] - HALPHA_COLOR[i]) * age) * glow;
         }
     }
 }

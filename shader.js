@@ -78,6 +78,26 @@ const float CRAB_RADIUS = 13.0;
 const float CRAB_STEP = 0.4;
 const vec3 CRAB_SQUASH = vec3(1.0, 0.8, 0.72);
 const vec3 CRAB_AXIS = vec3(0.0, 1.0, 0.0);
+const vec3 PILLAR_BOX = vec3(60.0, 26.0, 12.0);
+const int PILLAR_STEPS = 64;
+const vec3 PILLAR_LIGHT = vec3(0.25, 1.0, 0.35);
+const vec4 LEFT_BASE = vec4(-9.0, -23.0, 0.0, 4.2);
+const vec4 LEFT_TIP = vec4(-4.5, 8.0, 0.5, 1.8);
+const vec4 MIDDLE_BASE = vec4(1.5, -23.0, -1.0, 3.2);
+const vec4 MIDDLE_TIP = vec4(2.5, -5.0, -0.5, 1.7);
+const vec4 RIGHT_BASE = vec4(10.0, -23.0, -2.0, 2.6);
+const vec4 RIGHT_TIP = vec4(8.0, -12.0, -1.5, 1.4);
+const float PILLAR_OPACITY = 2.5;
+const float PILLAR_FLOOR = -15.0;
+const float RIM_WIDTH = 0.35;
+const float SULFUR_DEPTH = 0.8;
+const float FLOW_LENGTH = 6.0;
+const float FLOW_TURNS = 6.0;
+const float HAZE_DEPTH = 12.0;
+const vec3 SII_COLOR = vec3(1.0, 0.22, 0.1);
+const vec3 HALPHA_COLOR = vec3(0.75, 0.85, 0.35);
+const vec3 OIII_COLOR = vec3(0.2, 0.62, 0.95);
+const vec3 DUST_COLOR = vec3(0.3, 0.18, 0.08);
 const float GALAXY_RANGE = 4.0;
 const float PLASMA_DETAIL = 0.35;
 const vec3 SUPERNOVA_POSITION = vec3(-100.0, 30.0, -110.0);
@@ -653,6 +673,96 @@ vec3 crabGlow(vec3 p) {
         * (1.0 - smoothstep(6.0, 11.0, abs(height)));
     return (vec3(0.4, 0.55, 1.0) * synchrotron * 0.25 + filament * ridge * shell * 0.09
         + vec3(0.7, 0.8, 1.0) * (torus * 0.4 + wisps * 0.75 + jet * 0.25)) * edge;
+}
+
+vec4 pillarColumn(vec3 p, vec4 base, vec4 tip, vec4 best) {
+    vec3 axis = tip.xyz - base.xyz;
+    float h = clamp(dot(p - base.xyz, axis) / dot(axis, axis), 0.0, 1.0);
+    vec3 offset = p - base.xyz - axis * h;
+    float size = length(offset);
+    float d = size - mix(base.w, tip.w, h) - 0.6 * tip.w * exp(-square((h - 0.92) / 0.07));
+    return d < best.x ? vec4(d, offset / max(size, 1e-3)) : best;
+}
+
+vec4 pillarShape(vec3 p, vec3 light) {
+    vec4 best = vec4(1e3, 0.0, 1.0, 0.0);
+    best = pillarColumn(p, LEFT_BASE, LEFT_TIP, best);
+    best = pillarColumn(p, MIDDLE_BASE, MIDDLE_TIP, best);
+    best = pillarColumn(p, RIGHT_BASE, RIGHT_TIP, best);
+    for (int k = 0; k < 6; k++) {
+        float turn = float(k) * 2.4;
+        vec4 host = k < 4 ? LEFT_TIP : MIDDLE_TIP;
+        vec3 egg = host.xyz + host.w * vec3(1.1 * cos(turn), 0.7 + 0.3 * sin(turn * 1.7), 0.8 * sin(turn));
+        best = pillarColumn(p, vec4(egg - light * 1.2, 0.15), vec4(egg, 0.3 + 0.2 * fract(turn)), best);
+    }
+    return best;
+}
+
+float pillarFlow(vec3 p, vec3 light, float phase) {
+    float next = fract(phase + 0.5);
+    float first = fbm(p - light * phase * FLOW_LENGTH, 2.0);
+    float second = fbm(p - light * next * FLOW_LENGTH + 17.0, 2.0);
+    return mix(second, first, 1.0 - abs(2.0 * phase - 1.0));
+}
+
+vec3 eagleNebula(vec3 color, vec3 origin, vec3 dir, float jitter) {
+    float turn = 4.0 * PI * u_time / TIME_PERIOD;
+    vec3 drift = vec3(cos(turn), sin(turn), 0.0) * 0.4;
+    float veil = 0.35 + 0.65 * fbm(dir * 5.0 + drift, 2.0);
+    float height = smoothstep(-0.45, 0.35, dir.y);
+    color += mix(HALPHA_COLOR, OIII_COLOR, height) * veil * (0.007 + 0.015 * height) * HAZE_DEPTH;
+    vec3 inv = 1.0 / (dir + vec3(1e-6));
+    vec3 low = (-PILLAR_BOX - origin) * inv;
+    vec3 high = (PILLAR_BOX - origin) * inv;
+    vec3 enter = min(low, high);
+    vec3 leave = max(low, high);
+    float t = max(max(enter.x, enter.y), max(enter.z, 0.0));
+    float end = min(min(leave.x, leave.y), leave.z);
+    if (t >= end)
+        return color;
+    t += 0.4 * jitter;
+    vec3 light = normalize(PILLAR_LIGHT);
+    float phase = fract(u_time / TIME_PERIOD * FLOW_TURNS);
+    vec3 glow = vec3(0.0);
+    float transmittance = 1.0;
+    for (int n = 0; n < PILLAR_STEPS; n++) {
+        if (t > end || transmittance < 0.02)
+            break;
+        vec3 p = origin + dir * t;
+        vec4 shape = pillarShape(p, light);
+        float d = shape.x;
+        float rough = 0.5;
+        float flow = 0.0;
+        float shimmer = 1.0;
+        bool deep = p.y < PILLAR_FLOOR;
+        if (d < 3.0 || deep) {
+            rough = fbm(p * 0.45 + 3.0, 3.0);
+            d += 2.0 * (rough - 0.5);
+            if (abs(d) < 2.5) {
+                float stream = pillarFlow(p * 0.5, light, phase);
+                flow = step(0.0, d) * exp(-d / 1.2) * smoothstep(0.35, 0.75, stream);
+                shimmer = 0.8 + 0.4 * stream;
+            }
+        }
+        float dt = clamp(0.5 * abs(d), 0.15, deep ? 1.2 : 3.0);
+        float facing = dot(shape.yzw, light);
+        float lit = smoothstep(-0.1, 0.9, facing) * (0.5 + rough);
+        float top = smoothstep(0.4, 0.95, facing) * (0.5 + rough);
+        float edge = mix(0.05, 1.0, square(1.0 - abs(dot(shape.yzw, dir))));
+        float front = exp(-square(d / 0.25));
+        float sulfur = exp(-square((d - SULFUR_DEPTH) / RIM_WIDTH));
+        float halo = exp(-square((d - SULFUR_DEPTH - 0.9) / 0.7));
+        float dust = PILLAR_OPACITY * (1.0 - smoothstep(-0.5, 0.3, d))
+            + 1.5 * (1.0 - smoothstep(PILLAR_FLOOR - 7.0, PILLAR_FLOOR - 2.0, p.y + 3.0 * rough))
+            * (1.0 - smoothstep(45.0, 60.0, abs(p.x)));
+        vec3 emit = (vec3(1.0, 0.85, 0.55) * front * 0.4 + SII_COLOR * sulfur * 1.6) * lit * edge * shimmer
+            + HALPHA_COLOR * (halo * lit * edge * 0.4 + flow * top * 0.8)
+            + DUST_COLOR * (1.0 - smoothstep(-1.0, 0.0, d)) * lit * 0.05;
+        glow += transmittance * emit * dt;
+        transmittance *= exp(-dust * dt);
+        t += dt;
+    }
+    return color * transmittance + glow;
 }
 
 vec3 quasarHost(vec3 p) {
@@ -1406,6 +1516,9 @@ vec4 renderPixel(vec2 st) {
 
 #ifdef HAS_BIRTH
     color = protoCloud(color, origin, dir);
+#endif
+#ifdef HAS_PILLARS
+    color = eagleNebula(color, origin, dir, hash13(vec3(st * u_resolution, 3.0)));
 #endif
 #ifdef HAS_GALAXY
     vec3 stars = texture2D(galaxy_map, st).rgb;

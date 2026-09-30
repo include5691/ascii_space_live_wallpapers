@@ -52,12 +52,13 @@
         <choice value="spiral"/>
         <choice value="collision"/>
         <choice value="cluster"/>
+        <choice value="pillars"/>
         <choice value="bigbang"/>
         <choice value="birth"/>
         <choice value="system"/>
       </choices>
       <default>'spiral'</default>
-      <summary>Show a spiral galaxy, two galaxies colliding, a globular star cluster, the history of the universe from the Big Bang, the birth of the solar system, or the solar system</summary>
+      <summary>Show a spiral galaxy, two galaxies colliding, a globular star cluster, the Pillars of Creation in the Eagle Nebula, the history of the universe from the Big Bang, the birth of the solar system, or the solar system</summary>
     </key>
     <key name="real-time" type="b">
       <default>false</default>

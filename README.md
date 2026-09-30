@@ -26,6 +26,7 @@ Light rays bend around the black hole, so the far side of the disk shows up abov
   - a spiral galaxy with a yellow bulge, blue trailing arms and pink star-forming knots, turning slowly;
   - two spiral galaxies colliding: a real gravity simulation of thousands of stars. They swing past each other, throw out long tidal tails, fall back and merge, then it starts again;
   - a globular star cluster: 16,000 old stars packed into a bright core, with orange giants and blue stragglers, slowly orbiting;
+  - the Pillars of Creation in the Eagle Nebula: three dark dust columns lit from above by a young blue star cluster. Their edges glow in Hubble colors, orange-red sulfur at the surface and green hydrogen further out, in front of a teal oxygen haze. Gas boils off their tips toward the cluster, small egg-shaped knots sit on the tips, and red newborn stars shine through the dust;
   - the Big Bang: the history of the universe in 3 minutes. A tiny point flashes, space inflates into white-hot plasma that churns and cools to red, the fog clears into the cosmic microwave background, the dark ages pass, the first stars ignite, thousands of galaxies gather into the filaments of the cosmic web, and the camera settles on a spiral galaxy under today's stars. Then it starts again;
   - the birth of the solar system, 4.6 billion years ago, in 3 minutes. A massive sibling star explodes and its shock wave squeezes a cold, dark cloud of gas and dust and seeds it with radioactive aluminium-26. The cloud collapses from the inside out, spins up and flattens into a disk around a hidden orange protostar that fires jets from its poles and carves cavities in the cloud. Dust settles into rock inside the frost line and ice outside it, and the frost line creeps inward as the disk cools. Jupiter forms first and clears a gap, then Saturn, Uranus and Neptune; Mars is done early. The young Sun's X-ray and UV light boil the outer gas away while the inner gas falls onto the Sun, which shrinks and settles into steady hydrogen burning. Mercury, Venus and Earth grow from colliding rocks, Theia hits the young Earth and the debris forms the Moon, and the leftovers stay as the asteroid and Kuiper belts. Then it starts again;
   - the solar system: eight planets with their own looks, faint orbit lines, an asteroid belt and Saturn's rings. The Moon circles Earth, four moons circle Jupiter and Titan circles Saturn. Their shadows cross the planets, and they go dark in the planets' shadows. The center is any object you pick: the Sun, a black hole, a neutron star or a wormhole. The center lights everything; a black hole, neutron star or wormhole also bends the light. Planet names can be shown in the same pixel font.
@@ -103,7 +104,7 @@ gnome-extensions prefs space-wallpaper@include5691.github.io
 | First object (pair) | black hole | black hole, neutron star, star, wormhole, ringed planet, Earth |
 | Second object (pair) | black hole | black hole, neutron star, star, wormhole, ringed planet, Earth |
 | Center (deep sky solar system) | Sun | Sun, black hole, neutron star, wormhole |
-| Object (deep sky) | spiral galaxy | spiral galaxy, galaxy collision, star cluster, Big Bang, solar system birth, solar system |
+| Object (deep sky) | spiral galaxy | spiral galaxy, galaxy collision, star cluster, Pillars of Creation, Big Bang, solar system birth, solar system |
 | Planet names (solar system) | off | |
 | Real time (Earth, solar system) | off | |
 | Speed | 100 % | 0 – 400, orbits and cosmic events |
@@ -156,7 +157,7 @@ The shader is compiled only with the parts the current scene needs, so the first
 | `extension.js` | Hooks into backgrounds, timer, settings, window cover check, lock screen |
 | `renderer.js` | Offscreen passes, camera and cursor easing, galaxy star splatting |
 | `events.js` | Object layout, orbits, lighting, pair events, the star life cycles and the magnetar |
-| `galaxy.js` | Spiral galaxy, galaxy collision and star cluster particles |
+| `galaxy.js` | Spiral galaxy, galaxy collision, star cluster and Pillars of Creation particles |
 | `cosmos.js` | Big Bang timeline, first stars, cosmic web and the forming galaxy |
 | `birth.js` | Solar system birth timeline, collapsing cloud, disk, planet growth and the Moon-forming impact |
 | `debris.js` | Tidal disruption fragments that orbit, heat up, feed the disk or escape |

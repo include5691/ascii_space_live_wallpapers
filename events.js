@@ -1,7 +1,7 @@
 import {BIRTH, ENVELOPE_RADIUS, SHOCK_SPEED, SolarBirth, growthOf, moonAngle, sunAt} from './birth.js';
 import {BIG_BANG, BigBang} from './cosmos.js';
 import {DebrisField} from './debris.js';
-import {GalaxyCollision, SpiralGalaxy, StarCluster, crossed, normalized} from './galaxy.js';
+import {GalaxyCollision, Pillars, SpiralGalaxy, StarCluster, crossed, normalized} from './galaxy.js';
 
 const SEPARATION = 12;
 const PAIR_SCALE = 0.6;
@@ -43,13 +43,14 @@ const GALAXY_VIEWS = {
     spiral: {distance: 30, lift: 0.85},
     collision: {distance: 64, lift: 0.3},
     cluster: {distance: 40, lift: 0.2},
+    pillars: {distance: 48, lift: -0.12},
 };
 const DYSON_DISTANCE = 30;
 const CRAB_DISTANCE = 36;
 const CRAB_SCALE = 0.7;
 const CRAB_BEAMS = 1.5;
 const CRAB_LIFT = 0.5;
-const GALAXY_SCENARIOS = {collision: GalaxyCollision, cluster: StarCluster, bigbang: BigBang, birth: SolarBirth};
+const GALAXY_SCENARIOS = {collision: GalaxyCollision, cluster: StarCluster, pillars: Pillars, bigbang: BigBang, birth: SolarBirth};
 const BIG_BANG_VIEW = {far: 70, near: 30, low: 0.3, high: 0.85};
 const BANG_FLASH = 3;
 const BIRTH_VIEW = {far: 120, near: 55, low: 0.15, high: 0.4};
@@ -76,6 +77,7 @@ const SCENARIO_FEATURES = {
     spiral: ['GALAXY'],
     collision: ['GALAXY'],
     cluster: ['GALAXY'],
+    pillars: ['GALAXY', 'PILLARS'],
     bigbang: ['GALAXY', 'BIGBANG'],
     birth: ['GALAXY', 'STAR', 'SYSTEM', 'BIRTH'],
 };
@@ -422,6 +424,7 @@ export class Scene {
         case 'spiral':
         case 'collision':
         case 'cluster':
+        case 'pillars':
         case 'bigbang':
         case 'birth':
             this._galaxyView(state, still);

@@ -27,6 +27,7 @@ const GALAXIES = [
     ['spiral', 'Spiral galaxy'],
     ['collision', 'Galaxy collision'],
     ['cluster', 'Star cluster'],
+    ['pillars', 'Pillars of Creation'],
     ['bigbang', 'Big Bang'],
     ['birth', 'Solar system birth'],
     ['system', 'Solar system'],

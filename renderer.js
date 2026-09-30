@@ -6,6 +6,7 @@ import GObject from 'gi://GObject';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 
 import {EARTH_MAP} from './earthmap.js';
+import {PILLAR_MAP} from './pillarmap.js';
 import {KINDS, PLANET_NAMES, Scene} from './events.js';
 import {ASCII_SHADER, sceneShader} from './shader.js';
 import {skyAt} from './sky.js';
@@ -110,6 +111,12 @@ function createScenePipeline(context, features, slots) {
         template.set_layer_filters(1, Cogl.PipelineFilter.LINEAR, Cogl.PipelineFilter.LINEAR);
         template.set_layer_wrap_mode(1, Cogl.PipelineWrapMode.REPEAT);
         template.set_uniform_1i(template.get_uniform_location('earth_map'), 1);
+        if (features.includes('PILLARS')) {
+            template.set_layer_texture(3, createPillarTexture(context));
+            template.set_layer_filters(3, Cogl.PipelineFilter.LINEAR, Cogl.PipelineFilter.LINEAR);
+            template.set_layer_wrap_mode(3, Cogl.PipelineWrapMode.CLAMP_TO_EDGE);
+            template.set_uniform_1i(template.get_uniform_location('pillar_map'), 3);
+        }
         return template;
     });
     return {pipeline, uniforms: uniformsOf(pipeline, SCENE_UNIFORMS), galaxy: features.includes('GALAXY'), galaxyTexture: null};
@@ -134,6 +141,11 @@ function createEarthTexture(context) {
         });
     });
     return Cogl.Texture2D.new_from_data(context, width, height, Cogl.PixelFormat.RGBA_8888, width * 4, pixels);
+}
+
+function createPillarTexture(context) {
+    const {width, height, data} = PILLAR_MAP;
+    return Cogl.Texture2D.new_from_data(context, width, height, Cogl.PixelFormat.RGBA_8888_PRE, width * 4, GLib.base64_decode(data));
 }
 
 const sub = (a, b) => a.map((v, i) => v - b[i]);
@@ -420,7 +432,7 @@ export const SpaceContent = GObject.registerClass({
         const seedB = Math.floor(this._flow + 0.5) % FLOW_SEEDS;
 
         const {pitch} = this._camera;
-        const fov = FOV * scene.fov / this._zoom;
+        const fov = FOV * scene.fov / Math.max(this._zoom, scene.minZoom ?? 0);
 
         const target = this._scenePipelineFor(options);
         const {pipeline, uniforms} = target;

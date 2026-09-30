@@ -26,7 +26,7 @@ Light rays bend around the black hole, so the far side of the disk shows up abov
   - a spiral galaxy with a yellow bulge, blue trailing arms and pink star-forming knots, turning slowly;
   - two spiral galaxies colliding: a real gravity simulation of thousands of stars. They swing past each other, throw out long tidal tails, fall back and merge, then it starts again;
   - a globular star cluster: 16,000 old stars packed into a bright core, with orange giants and blue stragglers, slowly orbiting;
-  - the Pillars of Creation in the Eagle Nebula: three dark dust columns lit from above by a young blue star cluster. Their edges glow in Hubble colors, orange-red sulfur at the surface and green hydrogen further out, in front of a teal oxygen haze. Gas boils off their tips toward the cluster, small egg-shaped knots sit on the tips, and red newborn stars shine through the dust;
+  - the Pillars of Creation in the Eagle Nebula, drawn from the 2014 Hubble photo: three dust columns with gold-rimmed heads and dark brown trunks in front of a teal oxygen haze. The columns and the haze sit on separate layers that shift against each other as the camera turns. Their rims shimmer, gas boils off the tips and the bright stars twinkle. This view never zooms out past 100 %;
   - the Big Bang: the history of the universe in 3 minutes. A tiny point flashes, space inflates into white-hot plasma that churns and cools to red, the fog clears into the cosmic microwave background, the dark ages pass, the first stars ignite, thousands of galaxies gather into the filaments of the cosmic web, and the camera settles on a spiral galaxy under today's stars. Then it starts again;
   - the birth of the solar system, 4.6 billion years ago, in 3 minutes. A massive sibling star explodes and its shock wave squeezes a cold, dark cloud of gas and dust and seeds it with radioactive aluminium-26. The cloud collapses from the inside out, spins up and flattens into a disk around a hidden orange protostar that fires jets from its poles and carves cavities in the cloud. Dust settles into rock inside the frost line and ice outside it, and the frost line creeps inward as the disk cools. Jupiter forms first and clears a gap, then Saturn, Uranus and Neptune; Mars is done early. The young Sun's X-ray and UV light boil the outer gas away while the inner gas falls onto the Sun, which shrinks and settles into steady hydrogen burning. Mercury, Venus and Earth grow from colliding rocks, Theia hits the young Earth and the debris forms the Moon, and the leftovers stay as the asteroid and Kuiper belts. Then it starts again;
   - the solar system: eight planets with their own looks, faint orbit lines, an asteroid belt and Saturn's rings. The Moon circles Earth, four moons circle Jupiter and Titan circles Saturn. Their shadows cross the planets, and they go dark in the planets' shadows. The center is any object you pick: the Sun, a black hole, a neutron star or a wormhole. The center lights everything; a black hole, neutron star or wormhole also bends the light. Planet names can be shown in the same pixel font.
@@ -164,6 +164,7 @@ The shader is compiled only with the parts the current scene needs, so the first
 | `sky.js` | Sun, Moon and planet positions for real time |
 | `shader.js` | Scene and ASCII GLSL shaders |
 | `earthmap.js` | 256×128 land mask of the Earth |
+| `pillarmap.js` | Pillars of Creation cutout and haze layers from the Hubble photo |
 | `prefs.js` | Preferences window |
 | `schemas/` | GSettings schema |
 
@@ -178,6 +179,8 @@ journalctl -f -o cat /usr/bin/gnome-shell
 ## Credits
 
 The Earth's coastlines come from [Natural Earth](https://www.naturalearthdata.com/) 1:110m land, which is in the public domain.
+
+The Pillars of Creation come from the 2014 Hubble photo [heic1501a](https://esahubble.org/images/heic1501a/) by NASA, ESA/Hubble and the Hubble Heritage Team, under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/).
 
 ## License
 

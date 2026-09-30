@@ -485,9 +485,8 @@ export const SpaceContent = GObject.registerClass({
     }
 
     _scenePipelineFor(options) {
-        const {features: sceneFeatures} = this._scene;
-        const background = sceneFeatures.includes('BIGBANG') ? [] : BACKGROUND_FEATURES[options.background] ?? [];
-        const features = [...sceneFeatures, ...background];
+        const background = this._scene.backdrop ?? BACKGROUND_FEATURES[options.background] ?? [];
+        const features = [...this._scene.features, ...background];
         const key = `${this._scene.slots} ${features.sort().join(' ')}`;
         let target = this._scenePipelines.get(key);
         if (!target) {

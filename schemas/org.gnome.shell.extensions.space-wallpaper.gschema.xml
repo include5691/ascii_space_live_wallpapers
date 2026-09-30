@@ -84,7 +84,7 @@
         <choice value="nebula"/>
       </choices>
       <default>'milky-way'</default>
-      <summary>Sky behind the objects</summary>
+      <summary>Sky behind the objects in single and pair modes</summary>
     </key>
     <key name="orbit-speed" type="u">
       <range min="0" max="400"/>

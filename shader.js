@@ -72,6 +72,35 @@ const vec3 AURORA_COLOR = vec3(0.25, 1.0, 0.5);
 const vec3 MAGNETIC_POLE = vec3(0.048, 0.987, 0.154);
 const float AURORA_LATITUDE = 1.16;
 const vec3 NEBULA_CENTER = vec3(-0.45, -0.2, -1.0);
+const vec3 MILKY_POLE = vec3(0.44581, 0.89161, 0.07925);
+const vec3 MILKY_CENTER = vec3(-0.23727, 0.20308, -0.94998);
+const vec3 PLANE_POLE = vec3(0.0, 1.0, 0.0);
+const vec3 PLANE_CENTER = vec3(-0.292, 0.0, -0.956);
+const vec3 GALACTIC_POLE = vec3(-0.86768, 0.49713, 0.0003);
+const vec3 GALACTIC_CENTER = vec3(-0.05487, -0.09654, 0.99382);
+const vec2 DEEP_SCALES = vec2(20.0, 6.0);
+const vec2 DEEP_CHANCE = vec2(0.5, 0.12);
+const vec4 DEEP_SIGMAS = vec4(0.004, 0.01, 0.014, 0.03);
+const vec4 DEEP_PEAKS = vec4(0.012, 0.1, 0.04, 0.25);
+const vec3 HALO_POLE = vec3(0.14759, 0.98396, 0.10023);
+const vec3 HALO_AXIS = vec3(0.32078, -0.14349, 0.93622);
+const float HALO_HEIGHT = 4.65;
+const float HALO_REACH = 7.1;
+const vec2 HALO_EDGE = vec2(12.0, 16.0);
+const float HALO_SCALE = 2.6;
+const float HALO_GAIN = 0.07;
+const float HALO_GALAXIES = 0.5;
+#if defined(HAS_DEEP_FIELD)
+const vec2 STAR_DENSITY = vec2(0.08, 0.0);
+#elif defined(HAS_HALO)
+const vec2 STAR_DENSITY = vec2(0.4, 2.5);
+#elif defined(HAS_PLANE)
+const vec2 STAR_DENSITY = vec2(3.0, 8.0);
+#elif defined(HAS_YOUNG)
+const vec2 STAR_DENSITY = vec2(3.0, 4.0);
+#else
+const vec2 STAR_DENSITY = vec2(1.0, 4.0);
+#endif
 const float QUASAR_JET_REACH = 90.0;
 const float DYSON_PANELS = 72.0;
 const float DYSON_BAND = 0.35;
@@ -270,7 +299,11 @@ vec3 starfield(vec2 uv, float face, vec2 du, vec2 dv, float density, float seed)
         float dist = length(screen) / 0.7;
         float brightness = pow((h.z - threshold) / (1.0 - threshold), 2.0) * 2.5 / pow(2.5, float(layer));
         float twinkle = 0.75 + 0.25 * sin(2.0 * PI * (u_time / TIME_PERIOD * (48.0 + floor(h.x * 96.0)) + h.y));
+#ifdef HAS_YOUNG
+        vec3 tint = mix(vec3(0.7, 0.82, 1.0), vec3(1.0, 0.85, 0.7), h.y * h.y);
+#else
         vec3 tint = mix(vec3(0.75, 0.85, 1.0), vec3(1.0, 0.85, 0.7), h.y);
+#endif
         color += tint * brightness * twinkle * exp(-dist * dist);
     }
     return color;
@@ -292,9 +325,7 @@ float gwReach(vec3 p) {
         * (1.0 - smoothstep(GW_REACH * 0.6, GW_REACH, r)) / (1.0 + 0.12 * r);
 }
 
-vec4 milkyWay(vec3 d) {
-    vec3 pole = normalize(vec3(0.45, 0.9, 0.08));
-    vec3 center = normalize(vec3(-0.35, 0.0, -1.0) - pole * dot(vec3(-0.35, 0.0, -1.0), pole));
+vec4 milkyWay(vec3 d, vec3 pole, vec3 center) {
     float latitude = dot(d, pole);
     float longitude = atan(dot(d, cross(pole, center)), dot(d, center));
     float bulge = exp(-longitude * longitude * 1.2);
@@ -311,6 +342,80 @@ vec4 milkyWay(vec3 d) {
     glow += tint * cloud * 0.05;
     return vec4(glow, band);
 }
+
+#if defined(HAS_DEEP_FIELD) || defined(HAS_HALO)
+vec3 deepField(vec3 d, float pixel) {
+    float face;
+    vec2 uv = cubeFace(d, face);
+    vec3 color = vec3(0.0);
+    for (int layer = 0; layer < 2; layer++) {
+        bool far = layer == 0;
+        float scale = far ? DEEP_SCALES.x : DEEP_SCALES.y;
+        float chance = far ? DEEP_CHANCE.x : DEEP_CHANCE.y;
+        vec2 sigmas = far ? DEEP_SIGMAS.xy : DEEP_SIGMAS.zw;
+        vec2 peaks = far ? DEEP_PEAKS.xy : DEEP_PEAKS.zw;
+        vec2 base = floor(uv * scale - 0.5);
+        for (int n = 0; n < 4; n++) {
+            vec2 id = base + vec2(mod(float(n), 2.0), floor(float(n) * 0.5));
+            vec3 h = hash33(vec3(id, face * 13.0 + float(layer) * 71.0 + 5.0));
+            if (h.z > chance)
+                continue;
+            vec3 g = hash33(vec3(id, face * 13.0 + float(layer) * 71.0 + 9.0));
+            float bright = h.z / chance;
+            float sigma = mix(sigmas.x, sigmas.y, sqrt(bright));
+            float peak = peaks.x + peaks.y * bright * bright * bright * bright;
+            float ratio = mix(0.25, 1.0, g.y);
+            vec3 tint = vec3(0.6, 0.72, 1.0);
+            vec3 core = vec3(1.0, 0.9, 0.75);
+            if (g.x < 0.4) {
+                ratio = mix(0.6, 1.0, g.y);
+                tint = vec3(1.0, 0.85, 0.6);
+                core = tint;
+            } else if (g.x > 0.85) {
+                sigma = sigmas.x;
+                peak *= 0.5;
+                tint = vec3(1.0, 0.55, 0.35);
+                core = tint;
+            }
+            vec2 spot = (id + 0.5 + (h.xy - 0.5)) / scale;
+            peak *= step(max(abs(spot.x), abs(spot.y)), 1.0 - 3.0 * sigma);
+            vec2 offset = uv - spot;
+            float angle = 2.0 * PI * g.z;
+            vec2 axis = vec2(cos(angle), sin(angle));
+            vec2 size = max(vec2(sigma, sigma * ratio), pixel);
+            vec2 q = vec2(dot(offset, axis), axis.x * offset.y - axis.y * offset.x) / size;
+            float r2 = dot(q, q);
+            color += (tint * 0.65 * exp(-r2) + core * 0.35 * exp(-r2 / 0.09)) * peak;
+        }
+    }
+    return color;
+}
+#endif
+
+#ifdef HAS_HALO
+vec4 haloSky(vec3 d, float pixel) {
+    vec3 side = cross(HALO_POLE, HALO_AXIS);
+    float down = -dot(d, HALO_POLE);
+    vec3 glow = vec3(0.0);
+    float disk = 0.0;
+    if (down > 0.0) {
+        vec3 hit = HALO_AXIS * HALO_REACH + HALO_POLE * HALO_HEIGHT + d * (HALO_HEIGHT / down);
+        vec2 xy = vec2(dot(hit, HALO_AXIS), dot(hit, side));
+        float r = length(xy);
+        float arms = pow(0.5 + 0.5 * cos(2.0 * atan(xy.y, xy.x) - 4.7 * log(r + 0.3)), 3.0);
+        float dust = smoothstep(0.45, 0.7, fbm(vec3(xy * 0.6, 3.0), 3.0)) * arms;
+        float knots = smoothstep(0.6, 0.8, fbm(vec3(xy * 1.5, 7.0), 3.0));
+        disk = exp(-r / HALO_SCALE) * min(1.0 / down, 3.0) * (1.0 - smoothstep(HALO_EDGE.x, HALO_EDGE.y, r)) * HALO_GAIN;
+        glow = (vec3(0.55, 0.6, 0.8) * (0.2 + 1.3 * arms) * (1.0 - 0.6 * dust) + vec3(0.95, 0.3, 0.45) * arms * knots * 0.5) * disk;
+    } else {
+        glow = deepField(d, pixel) * HALO_GALAXIES * smoothstep(0.0, 0.1, -down);
+    }
+    vec3 center = normalize(-HALO_AXIS * HALO_REACH - HALO_POLE * HALO_HEIGHT);
+    float a2 = 2.0 * (1.0 - dot(d, center));
+    glow += vec3(1.0, 0.82, 0.55) * (0.2 * exp(-a2 / 0.008) + 0.03 * exp(-a2 / 0.03));
+    return vec4(glow, clamp(disk * 6.0, 0.0, 1.0));
+}
+#endif
 
 vec4 emissionNebula(vec3 d) {
     vec3 center = normalize(NEBULA_CENTER);
@@ -1446,6 +1551,9 @@ vec4 renderPixel(vec2 st) {
     vec2 sky = cubeFace(escape, face);
     vec2 du = dFdx(sky);
     vec2 dv = dFdy(sky);
+#if defined(HAS_DEEP_FIELD) || defined(HAS_HALO)
+    float pixel = 0.7 * max(length(dFdx(escape)), length(dFdy(escape))) / max(abs(escape.x), max(abs(escape.y), abs(escape.z)));
+#endif
 #ifdef HAS_WORMHOLE
     if (through) {
         color += transmittance * otherSky(portal, du, dv);
@@ -1457,12 +1565,20 @@ vec4 renderPixel(vec2 st) {
 #else
 #if defined(HAS_NEBULA)
         vec4 galaxy = emissionNebula(escape);
+#elif defined(HAS_DEEP_FIELD)
+        vec4 galaxy = vec4(deepField(escape, pixel), 0.0);
+#elif defined(HAS_HALO)
+        vec4 galaxy = haloSky(escape, pixel);
+#elif defined(HAS_PLANE)
+        vec4 galaxy = milkyWay(escape, PLANE_POLE, PLANE_CENTER);
+#elif defined(HAS_ECLIPTIC)
+        vec4 galaxy = milkyWay(escape, GALACTIC_POLE, GALACTIC_CENTER);
 #elif defined(HAS_MILKY_WAY)
-        vec4 galaxy = milkyWay(escape);
+        vec4 galaxy = milkyWay(escape, MILKY_POLE, MILKY_CENTER);
 #else
         vec4 galaxy = vec4(nebula(escape), 0.0);
 #endif
-        color += transmittance * (galaxy.rgb + starfield(sky, face, du, dv, 1.0 + 4.0 * galaxy.a, 0.0));
+        color += transmittance * (galaxy.rgb + starfield(sky, face, du, dv, STAR_DENSITY.x + STAR_DENSITY.y * galaxy.a, 0.0));
 #endif
     }
 

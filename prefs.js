@@ -199,7 +199,7 @@ export default class SpaceWallpaperPreferences extends ExtensionPreferences {
             const mode = settings.get_string('mode');
             const system = scene === 'system';
             const galaxyObject = mode === 'galaxy' ? settings.get_string('galaxy') : null;
-            background.set_sensitive(galaxyObject !== 'bigbang');
+            background.set_visible(mode !== 'galaxy');
             const eventsOn = settings.get_boolean('events') && !system;
             singleObject.set_visible(mode === 'single');
             firstObject.set_visible(mode === 'pair');

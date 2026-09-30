@@ -81,6 +81,18 @@ const SCENARIO_FEATURES = {
     bigbang: ['GALAXY', 'BIGBANG'],
     birth: ['GALAXY', 'STAR', 'SYSTEM', 'BIRTH'],
 };
+const SCENARIO_BACKDROPS = {
+    'system': ['ECLIPTIC'],
+    'system-devour': ['ECLIPTIC'],
+    'system-escape': ['ECLIPTIC'],
+    'system-wind': ['ECLIPTIC'],
+    spiral: ['DEEP_FIELD'],
+    collision: ['DEEP_FIELD'],
+    cluster: ['HALO'],
+    pillars: ['PLANE'],
+    bigbang: [],
+    birth: ['NEBULA', 'YOUNG'],
+};
 export const PAIR_STAND_INS = {'quasar': 'black-hole', 'dyson': 'star', 'crab': 'neutron-star'};
 
 export function selectedScene(settings) {
@@ -296,6 +308,10 @@ export class Scene {
     get features() {
         const kinds = this._objects.flatMap(kind => KIND_FEATURES[kind] ?? []);
         return [...new Set([...SCENARIO_FEATURES[this._scenario] ?? [], ...kinds])];
+    }
+
+    get backdrop() {
+        return SCENARIO_BACKDROPS[this._scenario] ?? null;
     }
 
     get slots() {

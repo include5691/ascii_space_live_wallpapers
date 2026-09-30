@@ -36,7 +36,9 @@ const CLUSTER_TYPES = [
 
 const PILLAR_SCALE = 0.027191;
 const PILLAR_CENTER = [601.6, 667.5];
-const PILLAR_TIPS = [[518, 173], [776, 353], [876, 548]];
+const PILLAR_TIPS = [[518, 173, -1.8], [776, 353, 0], [876, 548, 1.8]];
+const PILLAR_SKY = 300;
+const PILLAR_DISTANCE = 46;
 const PILLAR_SHARES = [0.5, 0.3, 0.2];
 const PILLAR_STARS = [
     [136, 353, 5], [525, 494, 3], [395, 68, 2], [842, 160, 1.5], [1200, 1165, 1.5], [1125, 988, 1.2],
@@ -209,8 +211,9 @@ export class StarCluster {
     }
 }
 
-function photoPoint([x, y]) {
-    return [(x - PILLAR_CENTER[0]) * PILLAR_SCALE, (PILLAR_CENTER[1] - y) * PILLAR_SCALE, 0];
+function photoPoint([x, y, z], depth = 0) {
+    const scale = PILLAR_SCALE * (1 + depth / PILLAR_DISTANCE);
+    return [(x - PILLAR_CENTER[0]) * scale, (PILLAR_CENTER[1] - y) * scale, (z ?? 0) - depth];
 }
 
 export class Pillars {
@@ -227,7 +230,7 @@ export class Pillars {
             setColor(this.colors, index, OLD_COLOR, 0.1 + 0.25 * random());
         }
         PILLAR_STARS.forEach(([x, y, glow], k) => {
-            this.positions.set(photoPoint([x, y]), (PILLAR_FIELD_STARS + k) * 3);
+            this.positions.set(photoPoint([x, y], PILLAR_SKY), (PILLAR_FIELD_STARS + k) * 3);
             setColor(this._base, k, PHOTO_STAR_COLOR, glow);
             this._cycles[k * 2] = TWINKLE_PERIOD[0] + (TWINKLE_PERIOD[1] - TWINKLE_PERIOD[0]) * random();
             this._cycles[k * 2 + 1] = random();
@@ -235,9 +238,9 @@ export class Pillars {
         for (let k = 0; k < PILLAR_MOTES; k++) {
             let pick = random();
             const tip = PILLAR_TIPS[PILLAR_SHARES.findIndex(share => (pick -= share) < 0)] ?? PILLAR_TIPS.at(-1);
-            const [x, y] = photoPoint(tip);
+            const [x, y, z] = photoPoint(tip);
             this._motes.set([
-                x + gaussian(random) * 0.8, y, gaussian(random) * 0.5, gaussian(random) * 0.4, random(),
+                x + gaussian(random) * 0.8, y, z + gaussian(random) * 0.5, gaussian(random) * 0.4, random(),
                 1 / (EVAPORATION_TIME * (0.7 + 0.6 * random())), 0.15 + 0.25 * random(),
             ], k * 7);
         }

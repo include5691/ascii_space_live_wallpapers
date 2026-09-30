@@ -43,7 +43,7 @@ const GALAXY_VIEWS = {
     spiral: {distance: 30, lift: 0.85},
     collision: {distance: 64, lift: 0.3},
     cluster: {distance: 40, lift: 0.2},
-    pillars: {distance: 46, lift: -0.14, minZoom: 1},
+    pillars: {distance: 46, lift: -0.14},
 };
 const DYSON_DISTANCE = 30;
 const CRAB_DISTANCE = 36;
@@ -502,7 +502,6 @@ export class Scene {
         const view = GALAXY_VIEWS[this._scenario];
         state.distance = view.distance;
         state.lift = view.lift;
-        state.minZoom = view.minZoom;
     }
 
     _bigBang(state, t) {

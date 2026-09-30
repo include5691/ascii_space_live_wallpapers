@@ -432,7 +432,7 @@ export const SpaceContent = GObject.registerClass({
         const seedB = Math.floor(this._flow + 0.5) % FLOW_SEEDS;
 
         const {pitch} = this._camera;
-        const fov = FOV * scene.fov / Math.max(this._zoom, scene.minZoom ?? 0);
+        const fov = FOV * scene.fov / this._zoom;
 
         const target = this._scenePipelineFor(options);
         const {pipeline, uniforms} = target;

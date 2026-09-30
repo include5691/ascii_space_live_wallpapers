@@ -84,12 +84,19 @@ const vec4 PILLAR_CUTOUT = vec4(-8.96, 14.02, 18.27, 32.19);
 const vec2 PILLAR_CUTOUT_TEXELS = vec2(84.0, 148.0);
 const vec4 PILLAR_BACKDROP = vec4(-16.36, 18.15, 34.8, 36.3);
 const vec2 PILLAR_BACKDROP_TEXELS = vec2(40.0, 42.0);
-const float PILLAR_DEPTH = 8.0;
-const float PILLAR_THICKNESS = 1.2;
+const float PILLAR_RELIEF = 6.0;
+const float PILLAR_SPREAD = 1.8;
+const float PILLAR_FLARE = 0.05;
+const int PILLAR_STEPS = 72;
 const float DUST_GAIN = 1.5;
 const float HAZE_GAIN = 1.0;
+const float HALO_WIDTH = 0.8;
 const float COVER_DIM = 0.6;
+const vec3 PILLAR_KEY = vec3(0.3, 0.8, 0.5);
 const vec3 PILLAR_LIGHT = vec3(0.0, 1.0, 0.0);
+const vec3 HAZE_FAR = vec3(0.2, 0.22, 0.26);
+const float HAZE_FLAT = 0.35;
+const float PILLAR_MIST = 8.0;
 const vec3 RIM_COLOR = vec3(0.55, 0.8, 0.75);
 const float RIM_GLOW = 0.3;
 const float FLOW_LENGTH = 6.0;
@@ -675,18 +682,35 @@ vec3 photoLight(vec3 srgb, float gain, float gamma) {
     return -log(1.0 - min(pow(srgb, vec3(gamma)) * gain, vec3(0.95)));
 }
 
-vec4 pillarCutout(vec2 p) {
+vec4 pillarSample(vec2 p) {
+    float bottom = PILLAR_CUTOUT.y - PILLAR_CUTOUT.w;
+    p.x /= 1.0 + PILLAR_FLARE * max(bottom - p.y, 0.0);
     vec2 uv = vec2(p.x - PILLAR_CUTOUT.x, PILLAR_CUTOUT.y - p.y) / PILLAR_CUTOUT.zw;
-    if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0)
-        return vec4(0.0);
     vec2 texel = clamp(uv * PILLAR_CUTOUT_TEXELS, vec2(0.5), PILLAR_CUTOUT_TEXELS - 0.5);
-    return texture2D(pillar_map, texel / PILLAR_MAP_SIZE);
+    vec4 dust = texture2D(pillar_map, texel / PILLAR_MAP_SIZE);
+    vec2 beyond = vec2(max(abs(uv.x - 0.5) - 0.5, 0.0), max(-uv.y, 0.0)) * PILLAR_CUTOUT.zw;
+    return vec4(dust.rgb, (2.0 * dust.a - 1.0) * PILLAR_RELIEF - length(beyond));
 }
 
-vec3 pillarBackdrop(vec2 p) {
+float pillarDepth(vec2 p) {
+    return PILLAR_SPREAD * (smoothstep(-2.0, 1.0, p.x) + smoothstep(4.5, 6.5, p.x) - 1.0) * smoothstep(-9.0, -3.0, p.y);
+}
+
+float pillarDistance(vec3 p, vec4 dust) {
+    float z = p.z - pillarDepth(p.xy);
+    return dust.a > 0.0 ? abs(z) - dust.a : length(vec2(dust.a, z));
+}
+
+vec3 pillarSky(vec3 origin, vec3 dir) {
+    vec2 p = vec2(atan(dir.x, -dir.z), asin(clamp(dir.y, -1.0, 1.0))) * length(origin);
     vec2 uv = vec2(p.x - PILLAR_BACKDROP.x, PILLAR_BACKDROP.y - p.y) / PILLAR_BACKDROP.zw;
     vec2 texel = clamp(uv * PILLAR_BACKDROP_TEXELS, vec2(0.5), PILLAR_BACKDROP_TEXELS - 0.5);
-    return texture2D(pillar_map, (texel + vec2(PILLAR_CUTOUT_TEXELS.x, 0.0)) / PILLAR_MAP_SIZE).rgb;
+    vec3 haze = texture2D(pillar_map, (texel + vec2(PILLAR_CUTOUT_TEXELS.x, 0.0)) / PILLAR_MAP_SIZE).rgb;
+    float away = length(max(abs(uv - 0.5) - 0.5, 0.0));
+    float turn = 2.0 * PI * u_time / TIME_PERIOD;
+    float wisp = fbm(vec3(p * 0.25, 0.0) + vec3(cos(turn), sin(turn), 0.0) * 0.6, 3.0);
+    haze = max(mix(mix(haze, HAZE_FAR, HAZE_FLAT), HAZE_FAR, smoothstep(0.0, 0.4, away)), HAZE_FAR * 0.9);
+    return photoLight(haze, HAZE_GAIN, 2.2) * (0.8 + 0.4 * wisp);
 }
 
 float pillarFlow(vec3 p, vec3 light, float phase) {
@@ -698,33 +722,47 @@ float pillarFlow(vec3 p, vec3 light, float phase) {
 
 float pillarCover = 0.0;
 
-vec2 pillarLayer(vec3 origin, vec3 dir, float depth) {
-    float range = length(origin);
-    vec3 forward = -origin / range;
-    vec3 right = normalize(cross(forward, vec3(0.0, 1.0, 0.0)));
-    vec3 p = dir * ((range - depth) / dot(dir, forward));
-    vec2 turn = vec2(origin.x / length(origin.xz), origin.y / range);
-    return vec2(dot(p, right), dot(p, cross(right, forward))) * range / (range - depth) + depth * turn;
+float pillarMist(float y) {
+    return smoothstep(PILLAR_CUTOUT.y - PILLAR_CUTOUT.w, PILLAR_CUTOUT.y - PILLAR_CUTOUT.w - PILLAR_MIST, y);
 }
 
 vec3 eagleNebula(vec3 color, vec3 origin, vec3 dir) {
-    vec3 light = normalize(PILLAR_LIGHT);
-    float phase = fract(u_time / TIME_PERIOD * FLOW_TURNS);
-    float turn = 2.0 * PI * u_time / TIME_PERIOD;
-    vec2 back = pillarLayer(origin, dir, -PILLAR_DEPTH);
-    float wisp = fbm(vec3(back * 0.25, 0.0) + vec3(cos(turn), sin(turn), 0.0) * 0.6, 3.0);
-    vec3 result = photoLight(pillarBackdrop(back), HAZE_GAIN, 2.2) * (0.75 + 0.5 * wisp) + color * 0.15;
-    float transmittance = 1.0;
-    for (int k = 0; k < 3; k++) {
-        vec2 p = pillarLayer(origin, dir, PILLAR_THICKNESS * float(k - 1));
-        vec4 dust = pillarCutout(p);
-        float alpha = 1.0 - pow(1.0 - dust.a, 1.0 / 3.0);
-        float rim = dust.a * (1.0 - dust.a) * 4.0 * smoothstep(0.45, 0.75, pillarFlow(vec3(p * 0.6, 0.0), light, phase));
-        result = mix(result, photoLight(dust.rgb / max(dust.a, 0.004), DUST_GAIN, 1.6) + RIM_COLOR * rim * RIM_GLOW, alpha);
-        transmittance *= 1.0 - alpha;
+    vec3 result = pillarSky(origin, dir) + color * 0.15;
+    pillarCover = 0.0;
+    float t = max(length(origin) - 30.0, 0.0);
+    float nearest = 1e3;
+    vec3 halo = vec3(0.0);
+    float fade = 1.0;
+    for (int n = 0; n < PILLAR_STEPS; n++) {
+        vec3 p = origin + dir * t;
+        vec4 dust = pillarSample(p.xy);
+        float d = pillarDistance(p, dust);
+        if (d < nearest && dust.a < 0.0) {
+            nearest = d;
+            halo = dust.rgb;
+            fade = 1.0 - pillarMist(p.y);
+        }
+        if (d < 0.02) {
+            vec2 e = vec2(0.25, 0.0);
+            vec2 slope = vec2(pillarSample(p.xy + e.xy).a - pillarSample(p.xy - e.xy).a,
+                pillarSample(p.xy + e.yx).a - pillarSample(p.xy - e.yx).a) / (2.0 * e.x);
+            float side = sign(p.z - pillarDepth(p.xy));
+            vec3 normal = normalize(vec3(-slope, side));
+            float shimmer = smoothstep(0.45, 0.75, pillarFlow(vec3(p.xy * 0.6, 0.0), normalize(PILLAR_LIGHT),
+                fract(u_time / TIME_PERIOD * FLOW_TURNS)));
+            float rim = pow(1.0 - abs(dot(normal, dir)), 3.0) * shimmer;
+            float shade = mix(0.7, 1.15, max(dot(normal, normalize(PILLAR_KEY)), 0.0));
+            float mist = pillarMist(p.y);
+            pillarCover = 1.0 - mist;
+            return mix(photoLight(dust.rgb, DUST_GAIN, 1.6) * shade + RIM_COLOR * rim * RIM_GLOW, result, mist);
+        }
+        t += clamp(0.5 * d, 0.04, 1.5);
+        if (t > length(origin) + 30.0)
+            break;
     }
-    pillarCover = 1.0 - transmittance;
-    return result;
+    float glow = exp(-nearest / HALO_WIDTH) * fade;
+    pillarCover = 0.5 * glow;
+    return mix(result, photoLight(halo, DUST_GAIN, 1.6), 0.9 * glow);
 }
 
 vec3 quasarHost(vec3 p) {

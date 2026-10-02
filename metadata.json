@@ -1,7 +1,7 @@
 {
   "uuid": "space-wallpaper@include5691.github.io",
   "name": "Space Wallpaper",
-  "description": "A live ASCII-art space wallpaper with black holes, neutron stars, stars and wormholes, rendered on the GPU. It turns to follow your cursor and also covers the lock screen.",
+  "description": "A live ASCII-art space wallpaper rendered on the GPU. Pick a black hole, neutron star, star, wormhole, ringed planet, Earth, quasar or the Crab Nebula, alone or as an orbiting pair with cosmic events. Or pick a deep sky scene: a spiral galaxy, a galaxy collision, a star cluster, the Pillars of Creation, the Big Bang, the birth of the solar system or the solar system. The camera follows your cursor, and the wallpaper also covers the lock screen.",
   "shell-version": ["50"],
   "session-modes": ["user", "unlock-dialog"],
   "url": "https://github.com/include5691/ascii_space_live_wallpapers",

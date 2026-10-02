@@ -1,6 +1,6 @@
-# Space Wallpaper
+# ASCII Space Live Wallpapers
 
-A live ASCII-art space wallpaper for GNOME, rendered on the GPU: black holes, neutron stars, stars and wormholes.
+A live ASCII-art space wallpaper for GNOME and Wallpaper Engine, rendered on the GPU: black holes, neutron stars, stars, wormholes, galaxies and the solar system.
 
 Light rays bend around the black hole, so the far side of the disk shows up above and below it. The scene is drawn as colored ASCII characters. The disk spins, stars twinkle, and the camera turns toward your cursor. The lock screen shows the same black hole as a still image.
 
@@ -70,8 +70,8 @@ GNOME Shell 50.
 ## Install
 
 ```sh
-git clone https://github.com/include5691/gnome_space_live_wallpaper_extension.git
-cd gnome_space_live_wallpaper_extension
+git clone https://github.com/include5691/ascii_space_live_wallpapers.git
+cd ascii_space_live_wallpapers
 make install
 ```
 

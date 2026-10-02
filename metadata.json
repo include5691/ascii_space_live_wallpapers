@@ -4,7 +4,7 @@
   "description": "A live ASCII-art space wallpaper with black holes, neutron stars, stars and wormholes, rendered on the GPU. It turns to follow your cursor and also covers the lock screen.",
   "shell-version": ["50"],
   "session-modes": ["user", "unlock-dialog"],
-  "url": "https://github.com/include5691/gnome_space_live_wallpaper_extension",
+  "url": "https://github.com/include5691/ascii_space_live_wallpapers",
   "settings-schema": "org.gnome.shell.extensions.space-wallpaper",
   "version-name": "3.0"
 }

@@ -241,6 +241,11 @@ function addLight(light, columns, rows, column, row, colors, o, share) {
 
 let viewTemplate = null;
 
+export function releaseTemplates() {
+    templates.clear();
+    viewTemplate = null;
+}
+
 function createViewTemplate(context) {
     const pipeline = Cogl.Pipeline.new(context);
     pipeline.add_snippet(Cogl.Snippet.new(Cogl.SnippetHook.FRAGMENT, ROUNDED_CLIP_DECLARATIONS, ROUNDED_CLIP_CODE));

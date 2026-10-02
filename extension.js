@@ -7,7 +7,7 @@ import * as Background from 'resource:///org/gnome/shell/ui/background.js';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 
 import {selectedScene} from './events.js';
-import {SpaceContent} from './renderer.js';
+import {SpaceContent, releaseTemplates} from './renderer.js';
 
 const MIN_SMOOTHING = 0.03;
 const MAX_SMOOTHING = 1.5;
@@ -118,7 +118,7 @@ export default class SpaceWallpaperExtension extends Extension {
     }
 
     disable() {
-        // unlock-dialog keeps the extension enabled so the lock screen shows a still black hole
+        // unlock-dialog keeps the extension enabled so the lock screen shows a still frame of the wallpaper
         this._stopTimer();
         this._cancelZoomSave();
         global.stage.disconnectObject(this);
@@ -130,6 +130,7 @@ export default class SpaceWallpaperExtension extends Extension {
         this._views.forEach(view => view.destroy());
         this._views = null;
         this._contents = null;
+        releaseTemplates();
         this._settings = null;
         this._options = null;
     }

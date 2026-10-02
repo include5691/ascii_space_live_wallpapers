@@ -8,6 +8,17 @@ Light rays bend around the black hole, so the far side of the disk shows up abov
 
 ![Lock screen](assets/lock.png)
 
+## Gallery
+
+| | |
+| --- | --- |
+| ![A black hole tearing apart a star](assets/gallery/pair.png)<br>A black hole tears apart a star and fires jets | ![Earth](assets/gallery/earth.png)<br>Earth at the real time of day |
+| ![Quasar](assets/gallery/quasar.png)<br>Quasar | ![Crab Nebula](assets/gallery/crab.png)<br>Crab Nebula |
+| ![Ringed planet](assets/gallery/planet.png)<br>Ringed planet | ![Wormhole](assets/gallery/wormhole.png)<br>Wormhole |
+| ![Spiral galaxy](assets/gallery/spiral.png)<br>Spiral galaxy | ![Galaxy collision](assets/gallery/collision.png)<br>Galaxy collision |
+| ![Pillars of Creation](assets/gallery/pillars.png)<br>Pillars of Creation | ![Big Bang](assets/gallery/big-bang.png)<br>Big Bang plasma |
+| ![Solar system birth](assets/gallery/birth.png)<br>Solar system birth | ![Solar system](assets/gallery/solar-system.png)<br>Solar system with planet names |
+
 ## Features
 
 - Real-time ray tracing of light around a black hole, in a GLSL shader.

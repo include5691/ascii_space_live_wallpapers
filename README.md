@@ -90,6 +90,25 @@ gnome-extensions disable space-wallpaper@include5691.github.io
 make uninstall
 ```
 
+## Wallpaper Engine
+
+The same wallpaper also runs in [Wallpaper Engine](https://www.wallpaperengine.io/) on Windows as a web wallpaper. It needs WebGL 2.
+
+Build it with Node.js:
+
+```sh
+make wallpaper-engine
+```
+
+This writes `build/wallpaper-engine/`. Copy that folder to Windows. In Wallpaper Engine, open the editor, pick **Open wallpaper → Open from file** and choose its `project.json`. Publish it to the Workshop from the editor.
+
+All settings below are in the wallpaper's properties, except:
+
+- Frame rate comes from Wallpaper Engine's own FPS setting.
+- Pausing behind windows uses Wallpaper Engine's playback rules.
+- Zoom is a slider only, because Wallpaper Engine does not pass the mouse wheel to wallpapers.
+- There is no lock screen view.
+
 ## Settings
 
 ```sh
@@ -170,8 +189,9 @@ The shader is compiled only with the parts the current scene needs, so the first
 | `textures/pillars.png` | Pillars of Creation colors, thickness and haze from the Hubble photo |
 | `prefs.js` | Preferences window |
 | `schemas/` | GSettings schema |
+| `wallpaper-engine/` | Wallpaper Engine page, WebGL 2 renderer, properties and `project.json` generator |
 
-Build a zip for extensions.gnome.org with `make pack`.
+Build a zip for extensions.gnome.org with `make pack`. Build the Wallpaper Engine folder with `make wallpaper-engine`.
 
 Watch the logs:
 

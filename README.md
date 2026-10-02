@@ -163,8 +163,8 @@ The shader is compiled only with the parts the current scene needs, so the first
 | `debris.js` | Tidal disruption fragments that orbit, heat up, feed the disk or escape |
 | `sky.js` | Sun, Moon and planet positions for real time |
 | `shader.js` | Scene and ASCII GLSL shaders |
-| `earthmap.js` | 256×128 land mask of the Earth |
-| `pillarmap.js` | Pillars of Creation colors, thickness and haze from the Hubble photo |
+| `textures/earth.png` | 256×128 land mask of the Earth |
+| `textures/pillars.png` | Pillars of Creation colors, thickness and haze from the Hubble photo |
 | `prefs.js` | Preferences window |
 | `schemas/` | GSettings schema |
 

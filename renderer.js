@@ -1,12 +1,11 @@
 import Clutter from 'gi://Clutter';
 import Cogl from 'gi://Cogl';
+import GdkPixbuf from 'gi://GdkPixbuf';
 import GLib from 'gi://GLib';
 import GObject from 'gi://GObject';
 
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 
-import {EARTH_MAP} from './earthmap.js';
-import {PILLAR_MAP} from './pillarmap.js';
 import {KINDS, PLANET_NAMES, Scene} from './events.js';
 import {ASCII_SHADER, sceneShader} from './shader.js';
 import {skyAt} from './sky.js';
@@ -107,12 +106,12 @@ function uniformsOf(pipeline, names) {
 function createScenePipeline(context, features, slots) {
     const pipeline = createPipeline(context, `scene ${slots} ${features.join(' ')}`, () => {
         const template = createTemplate(context, sceneShader(features, slots), 'renderPixel');
-        template.set_layer_texture(1, createEarthTexture(context));
+        template.set_layer_texture(1, loadTexture(context, 'earth.png'));
         template.set_layer_filters(1, Cogl.PipelineFilter.LINEAR, Cogl.PipelineFilter.LINEAR);
         template.set_layer_wrap_mode(1, Cogl.PipelineWrapMode.REPEAT);
         template.set_uniform_1i(template.get_uniform_location('earth_map'), 1);
         if (features.includes('PILLARS')) {
-            template.set_layer_texture(3, createPillarTexture(context));
+            template.set_layer_texture(3, loadTexture(context, 'pillars.png'));
             template.set_layer_filters(3, Cogl.PipelineFilter.LINEAR, Cogl.PipelineFilter.LINEAR);
             template.set_layer_wrap_mode(3, Cogl.PipelineWrapMode.CLAMP_TO_EDGE);
             template.set_uniform_1i(template.get_uniform_location('pillar_map'), 3);
@@ -129,23 +128,13 @@ function createFramebuffer(texture) {
     return framebuffer;
 }
 
-function createEarthTexture(context) {
-    const {width, height, data} = EARTH_MAP;
-    const packed = GLib.base64_decode(data);
-    const pixels = new Uint8Array(width * height * 4);
-    packed.forEach((byte, index) => {
-        [byte >> 4, byte & 15].forEach((level, half) => {
-            const offset = (index * 2 + half) * 4;
-            pixels.fill(level * 17, offset, offset + 3);
-            pixels[offset + 3] = 255;
-        });
-    });
-    return Cogl.Texture2D.new_from_data(context, width, height, Cogl.PixelFormat.RGBA_8888, width * 4, pixels);
-}
+const TEXTURES_DIR = GLib.build_filenamev([GLib.path_get_dirname(GLib.filename_from_uri(import.meta.url)[0]), 'textures']);
 
-function createPillarTexture(context) {
-    const {width, height, data} = PILLAR_MAP;
-    return Cogl.Texture2D.new_from_data(context, width, height, Cogl.PixelFormat.RGBA_8888_PRE, width * 4, GLib.base64_decode(data));
+function loadTexture(context, name) {
+    const pixbuf = GdkPixbuf.Pixbuf.new_from_file(GLib.build_filenamev([TEXTURES_DIR, name]));
+    const format = pixbuf.get_has_alpha() ? Cogl.PixelFormat.RGBA_8888_PRE : Cogl.PixelFormat.RGB_888;
+    return Cogl.Texture2D.new_from_data(context, pixbuf.get_width(), pixbuf.get_height(), format,
+        pixbuf.get_rowstride(), pixbuf.get_pixels());
 }
 
 const sub = (a, b) => a.map((v, i) => v - b[i]);

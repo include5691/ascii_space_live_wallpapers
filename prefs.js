@@ -4,41 +4,8 @@ import Gtk from 'gi://Gtk';
 
 import {ExtensionPreferences} from 'resource:///org/gnome/Shell/Extensions/js/extensions/prefs.js';
 
+import {BACKGROUNDS, CENTERS, GALAXIES, MODES, OBJECTS, SINGLE_OBJECTS} from './choices.js';
 import {PAIR_STAND_INS, selectedScene} from './events.js';
-
-const MODES = [
-    ['single', 'Single'],
-    ['pair', 'Pair'],
-    ['galaxy', 'Deep sky'],
-];
-
-const OBJECTS = [
-    ['black-hole', 'Black hole'],
-    ['neutron-star', 'Neutron star'],
-    ['star', 'Star'],
-    ['wormhole', 'Wormhole'],
-    ['planet', 'Ringed planet'],
-    ['earth', 'Earth'],
-];
-
-const SINGLE_OBJECTS = [...OBJECTS, ['quasar', 'Quasar'], ['dyson', 'Dyson swarm'], ['crab', 'Crab Nebula']];
-
-const GALAXIES = [
-    ['spiral', 'Spiral galaxy'],
-    ['collision', 'Galaxy collision'],
-    ['cluster', 'Star cluster'],
-    ['pillars', 'Pillars of Creation'],
-    ['bigbang', 'Big Bang'],
-    ['birth', 'Solar system birth'],
-    ['system', 'Solar system'],
-];
-
-const CENTERS = [
-    ['star', 'Sun'],
-    ['black-hole', 'Black hole'],
-    ['neutron-star', 'Neutron star'],
-    ['wormhole', 'Wormhole'],
-];
 
 const EVENT_PAIRS = new Set([
     'black-hole+black-hole',
@@ -70,12 +37,6 @@ function hasDisk(objects, events) {
     return hasBlackHole(objects, events) ||
         (events && objects.includes('neutron-star') && objects.includes('star'));
 }
-
-const BACKGROUNDS = [
-    ['milky-way', 'Milky Way'],
-    ['stars', 'Stars'],
-    ['nebula', 'Nebula'],
-];
 
 function connectSetting(settings, key, widget, callback) {
     const id = settings.connect(`changed::${key}`, callback);

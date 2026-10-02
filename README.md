@@ -155,7 +155,10 @@ The shader is compiled only with the parts the current scene needs, so the first
 | File | Purpose |
 | --- | --- |
 | `extension.js` | Hooks into backgrounds, timer, settings, window cover check, lock screen |
-| `renderer.js` | Offscreen passes, camera and cursor easing, galaxy star splatting |
+| `renderer.js` | Cogl offscreen passes and the background view |
+| `frame.js` | Per-frame shader uniforms, camera and cursor easing, planet labels, galaxy star splatting |
+| `options.js` | Settings to render options |
+| `choices.js` | Choices shown in the settings |
 | `events.js` | Object layout, orbits, lighting, pair events, the star life cycles and the magnetar |
 | `galaxy.js` | Spiral galaxy, galaxy collision, star cluster and Pillars of Creation particles |
 | `cosmos.js` | Big Bang timeline, first stars, cosmic web and the forming galaxy |

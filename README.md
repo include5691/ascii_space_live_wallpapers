@@ -117,7 +117,7 @@ All settings below are in the wallpaper's properties, except:
 
 - Frame rate comes from Wallpaper Engine's own FPS setting.
 - Pausing behind windows uses Wallpaper Engine's playback rules.
-- Zoom is a slider only, because Wallpaper Engine does not pass the mouse wheel to wallpapers.
+- Wallpaper Engine does not pass the mouse wheel to wallpapers, so zoom by dragging up or down with the left button held. The zoom resets to the slider value on restart.
 - Character size defaults to 2 for finer detail on non-HiDPI screens.
 - There is no lock screen view.
 

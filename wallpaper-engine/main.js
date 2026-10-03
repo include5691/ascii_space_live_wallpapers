@@ -1,9 +1,10 @@
 import {SpaceFrame} from '../frame.js';
 import {readOptions} from '../options.js';
-import {WallpaperSettings} from './settings.js';
+import {PROPERTIES, WallpaperSettings} from './settings.js';
 import {WebGLRenderer} from './webgl.js';
 
 const DEFAULT_FPS = 30;
+const ZOOM_PER_SCREEN = 2;
 
 const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
 
@@ -17,6 +18,7 @@ let paused = false;
 let ready = false;
 let lastDraw = 0;
 let pointer = null;
+let drag = null;
 
 const deviceSize = () => [
     Math.round(window.innerWidth * window.devicePixelRatio),
@@ -58,7 +60,23 @@ window.wallpaperPropertyListener = {
     },
 };
 
+function setZoom(zoom) {
+    settings.apply({zoom: {value: clamp(zoom, PROPERTIES.zoom.min, PROPERTIES.zoom.max)}});
+    frame.setOptions(readOptions(settings));
+}
+
+window.addEventListener('mousedown', event => {
+    if (event.button === 0)
+        drag = {y: event.clientY, zoom: frame.options.zoom * 100};
+});
+window.addEventListener('mouseup', () => {
+    drag = null;
+});
 window.addEventListener('mousemove', event => {
+    if (drag) {
+        setZoom(drag.zoom * Math.exp((drag.y - event.clientY) / window.innerHeight * ZOOM_PER_SCREEN));
+        return;
+    }
     pointer = [
         clamp(event.clientX / window.innerWidth * 2 - 1, -1, 1),
         clamp(event.clientY / window.innerHeight * 2 - 1, -1, 1),

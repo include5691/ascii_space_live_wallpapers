@@ -117,6 +117,7 @@ const PAIR_FOV = 1.15;
 const BLACK_HOLE_SHADOW = 2.6;
 
 const SINGLE_SCALE = {'star': SINGLE_STAR_SCALE, 'planet': SINGLE_PLANET_SCALE, 'earth': 0.9};
+const SINGLE_FOV = {'black-hole': 1.25};
 
 const SYSTEM_PLANETS = [
     {orbit: 4.3, radius: 0.45, years: 0.24, start: 0.3},
@@ -619,6 +620,7 @@ export class Scene {
     _single(state) {
         const [kind] = this._objects;
         state.bodies = [body(kind, [0, 0, 0], SINGLE_SCALE[kind] ?? 1)];
+        state.fov = SINGLE_FOV[kind] ?? 1;
     }
 
     _solarSystem(state) {

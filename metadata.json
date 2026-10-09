@@ -6,5 +6,5 @@
   "session-modes": ["user", "unlock-dialog"],
   "url": "https://github.com/include5691/ascii_space_live_wallpapers",
   "settings-schema": "org.gnome.shell.extensions.space-wallpaper",
-  "version-name": "3.0"
+  "version-name": "3.1"
 }

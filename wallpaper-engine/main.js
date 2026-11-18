@@ -66,7 +66,7 @@ function setZoom(zoom) {
 }
 
 window.addEventListener('mousedown', event => {
-    if (event.button === 0)
+    if (event.button === 0 && settings.get_boolean('drag-zoom'))
         drag = {y: event.clientY, zoom: frame.options.zoom * 100};
 });
 window.addEventListener('mouseup', () => {

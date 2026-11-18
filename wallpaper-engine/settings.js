@@ -26,6 +26,7 @@ export const PROPERTIES = {
     elevation: slider('elevation', 'Camera height, °', -30, 60, 8),
     tilt: slider('tilt', 'Tilt, °', -45, 45, 9),
     zoom: slider('zoom', 'Zoom, %', 25, 400, 100),
+    dragzoom: toggle('drag-zoom', 'Drag to zoom', false),
     brightness: slider('brightness', 'Brightness, %', 25, 400, 100),
     doppler: slider('doppler', 'Doppler effect, %', 0, 100, 40),
 };

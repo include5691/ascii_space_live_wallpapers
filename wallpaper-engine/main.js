@@ -74,7 +74,7 @@ window.addEventListener('mouseup', () => {
 });
 window.addEventListener('mousemove', event => {
     if (drag) {
-        setZoom(drag.zoom * Math.exp((drag.y - event.clientY) / window.innerHeight * ZOOM_PER_SCREEN));
+        setZoom(drag.zoom * Math.exp((drag.y - event.clientY) / window.innerHeight * ZOOM_PER_SCREEN * settings.get_uint('drag-zoom-speed') / 100));
         return;
     }
     pointer = [

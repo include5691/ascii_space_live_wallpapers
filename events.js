@@ -64,6 +64,11 @@ const SCENARIO_FEATURES = {
     quasar: ['BLACK_HOLE', 'DISK', 'EVENTS', 'QUASAR'],
     dyson: ['STAR', 'DYSON'],
     crab: ['NEUTRON', 'CRAB'],
+    webb: ['CRAFT', 'WEBB'],
+    voyager: ['CRAFT', 'VOYAGER'],
+    cassini: ['PLANET', 'CRAFT', 'CASSINI'],
+    perseverance: ['CRAFT', 'GROUND', 'MARS'],
+    apollo: ['EARTH', 'CRAFT', 'GROUND', 'APOLLO'],
     magnetar: ['NEUTRON', 'MAGNETAR', 'SHEET'],
     supernova: ['STAR', 'NEUTRON', 'EVENTS'],
     merger: ['BLACK_HOLE', 'DISK', 'SHEET'],
@@ -92,8 +97,23 @@ const SCENARIO_BACKDROPS = {
     pillars: ['PLANE'],
     bigbang: [],
     birth: ['NEBULA', 'YOUNG'],
+    perseverance: [],
+    apollo: [],
 };
-export const PAIR_STAND_INS = {'quasar': 'black-hole', 'dyson': 'star', 'crab': 'neutron-star'};
+export const PAIR_STAND_INS = {
+    'quasar': 'black-hole', 'dyson': 'star', 'crab': 'neutron-star',
+    'webb': 'star', 'voyager': 'star', 'cassini': 'planet', 'perseverance': 'planet', 'apollo': 'earth',
+};
+const CRAFTS = {
+    webb: {distance: 17, lift: 0.4, light: [0.35, -0.75, 0.55]},
+    voyager: {distance: 19, lift: 0.15, light: [-0.9, 0.3, 0.35]},
+    cassini: {distance: 15, lift: 0.05, light: [0.6, 0.3, 0.75],
+        body: {kind: 'planet', position: [-30, -7, -72], scale: 5}},
+    perseverance: {distance: 7.5, lift: 0.05, light: [-1, 0.5, 0.45]},
+    apollo: {distance: 21, lift: -0.02, light: [-0.8, 0.3, 0.55],
+        body: {kind: 'earth', position: [-24, 12, -84], scale: 1.8}},
+};
+const CRAFT_PERIOD = 240;
 
 export function selectedScene(settings) {
     const mode = settings.get_string('mode');
@@ -272,7 +292,7 @@ function devourStage(index, orbit, t) {
 }
 
 function singleScenario(kind, events) {
-    if (kind === 'quasar' || kind === 'dyson' || kind === 'crab')
+    if (kind === 'quasar' || kind === 'dyson' || kind === 'crab' || kind in CRAFTS)
         return kind;
     if (!events)
         return 'single';
@@ -408,6 +428,7 @@ export class Scene {
             magnetar: [0, 0, 0, 0],
             quasar: 0,
             particles: null,
+            craft: [0, 0, 0, 0],
             bigBang: [0, 0, 0, 0],
             bigBangClock: [0, 0, 0, 0],
             birth: [0, 0, 0, 0],
@@ -437,6 +458,13 @@ export class Scene {
             break;
         case 'crab':
             this._crab(state);
+            break;
+        case 'webb':
+        case 'voyager':
+        case 'cassini':
+        case 'perseverance':
+        case 'apollo':
+            this._craft(state);
             break;
         case 'spiral':
         case 'collision':
@@ -594,6 +622,19 @@ export class Scene {
         state.beams = CRAB_BEAMS;
         state.distance = CRAB_DISTANCE;
         state.lift = CRAB_LIFT;
+    }
+
+    _craft(state) {
+        const craft = CRAFTS[this._scenario];
+        const {kind, position, scale} = craft.body ?? {};
+        state.bodies = kind ? [body(kind, position, scale)] : [];
+        const length = Math.hypot(...craft.light);
+        state.light = [...craft.light.map(v => v / length), 0];
+        state.distance = craft.distance;
+        state.lift = craft.lift;
+        state.tidal[3] = 0;
+        state.moonKeep = kind === 'earth' ? 0 : 1;
+        state.craft = [this._time % CRAFT_PERIOD, 0, 0, 0];
     }
 
     _quasar(state) {

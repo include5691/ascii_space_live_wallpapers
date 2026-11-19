@@ -21,9 +21,14 @@
         <choice value="quasar"/>
         <choice value="dyson"/>
         <choice value="crab"/>
+        <choice value="webb"/>
+        <choice value="voyager"/>
+        <choice value="cassini"/>
+        <choice value="perseverance"/>
+        <choice value="apollo"/>
       </choices>
       <default>'black-hole'</default>
-      <summary>The object in single mode, and the first object of a pair; a quasar, a Dyson swarm and the Crab Nebula are shown alone only</summary>
+      <summary>The object in single mode, and the first object of a pair; a quasar, a Dyson swarm, the Crab Nebula and the spacecraft scenes are shown alone only</summary>
     </key>
     <key name="second-object" type="s">
       <choices>

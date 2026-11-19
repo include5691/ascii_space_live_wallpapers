@@ -13,7 +13,9 @@ export const OBJECTS = [
     ['earth', 'Earth'],
 ];
 
-export const SINGLE_OBJECTS = [...OBJECTS, ['quasar', 'Quasar'], ['dyson', 'Dyson swarm'], ['crab', 'Crab Nebula']];
+export const SINGLE_OBJECTS = [...OBJECTS, ['quasar', 'Quasar'], ['dyson', 'Dyson swarm'], ['crab', 'Crab Nebula'],
+    ['webb', 'James Webb telescope'], ['voyager', 'Voyager'], ['cassini', 'Cassini at Saturn'],
+    ['perseverance', 'Perseverance on Mars'], ['apollo', 'Apollo on the Moon']];
 
 export const GALAXIES = [
     ['spiral', 'Spiral galaxy'],

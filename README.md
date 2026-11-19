@@ -1,6 +1,6 @@
 # ASCII Space Live Wallpapers
 
-A live ASCII-art space wallpaper for GNOME and Wallpaper Engine, rendered on the GPU: black holes, neutron stars, stars, wormholes, galaxies and the solar system.
+A live ASCII-art space wallpaper for GNOME and Wallpaper Engine, rendered on the GPU: black holes, neutron stars, stars, wormholes, galaxies, the solar system and famous spacecraft.
 
 Light rays bend around the black hole, so the far side of the disk shows up above and below it. The scene is drawn as colored ASCII characters. The disk spins, stars twinkle, and the camera turns toward your cursor. The lock screen shows the same black hole as a still image.
 
@@ -23,7 +23,7 @@ Light rays bend around the black hole, so the far side of the disk shows up abov
 
 - Real-time ray tracing of light around a black hole, in a GLSL shader.
 - Drawn as ASCII characters in the scene's own colors, from ` .:-+=*%#@`.
-- Nine object types:
+- Fourteen object types:
   - a spinning black hole with an accretion disk. Spin drags space around it, which squashes the shadow into a D shape, and pulls the disk's inner edge closer, following the Kerr ISCO;
   - a lone neutron star (pulsar) with rotating hot spots and sweeping beams, and no disk, like most real pulsars;
   - a Sun-like star with limb darkening, granulation, sunspots and a corona;
@@ -32,7 +32,12 @@ Light rays bend around the black hole, so the far side of the disk shows up abov
   - Earth: real continents from a world map, oceans with sun glint, drifting clouds, polar ice, a blue atmosphere, city lights and green auroras on the night side, the Moon with dark maria, the ISS and a Starlink train;
   - a quasar, shown alone: a giant black hole with a hot blue-white disk, jets with bright knots far longer than the disk, and a faint host galaxy;
   - a Dyson swarm, shown alone: a Sun-like star circled by six tilted rings of solar collectors. Their sunlit faces glint on the far side, their dark backs cross the star's face, and a few panels are still missing;
-  - the Crab Nebula, shown alone: a pulsar inside a blue synchrotron glow with red and yellow filaments, a bright inner ring, polar jets and ripples that run outward.
+  - the Crab Nebula, shown alone: a pulsar inside a blue synchrotron glow with red and yellow filaments, a bright inner ring, polar jets and ripples that run outward;
+  - the James Webb telescope, shown alone: a gold mirror of hexagon segments on struts above a purple five-layer sunshield, lit by the Sun from below, slowly turning;
+  - Voyager, shown alone: its big white dish turned toward the far Sun, the golden record on its side, the science and RTG booms, the long magnetometer boom and the radio antennas;
+  - Cassini at Saturn: the probe with its dish, gold foil, RTGs and the Huygens probe, slowly spinning in front of a ringed Saturn and its moons;
+  - Perseverance on Mars: the rover with its six wheels, mast, arm and RTG on a red, rocky plain, while Ingenuity takes off, flies, kicks up dust and lands again every minute;
+  - Apollo on the Moon: the lunar module with its gold descent stage and its legs, and the flag, on a cratered gray plain with black shadows, under a black sky with the Earth.
 - A deep sky mode, where every object sits under its real sky:
   - a spiral galaxy with a yellow bulge, blue trailing arms and pink star-forming knots, turning slowly in black intergalactic space dotted with faint far galaxies, as in the Hubble Deep Field;
   - two spiral galaxies colliding: a real gravity simulation of thousands of stars. They swing past each other, throw out long tidal tails, fall back and merge, then it starts again. Far galaxies dot the black sky around them;
@@ -131,7 +136,7 @@ gnome-extensions prefs space-wallpaper@include5691.github.io
 | --- | --- | --- |
 | Mode | single | single, pair, deep sky |
 | Black hole spin | 60 % | 0 – 99 |
-| Object (single) | black hole | black hole, neutron star, star, wormhole, ringed planet, Earth, quasar, Dyson swarm, Crab Nebula |
+| Object (single) | black hole | black hole, neutron star, star, wormhole, ringed planet, Earth, quasar, Dyson swarm, Crab Nebula, James Webb telescope, Voyager, Cassini at Saturn, Perseverance on Mars, Apollo on the Moon |
 | First object (pair) | black hole | black hole, neutron star, star, wormhole, ringed planet, Earth |
 | Second object (pair) | black hole | black hole, neutron star, star, wormhole, ringed planet, Earth |
 | Center (deep sky solar system) | Sun | Sun, black hole, neutron star, wormhole |
@@ -145,7 +150,7 @@ gnome-extensions prefs space-wallpaper@include5691.github.io
 | Follow cursor | on | |
 | Sensitivity | 50 % | 0 – 200 |
 | Smoothness | 40 % | 0 – 100 |
-| Background | Milky Way | Milky Way, stars, nebula; single and pair modes only, deep sky objects have their real sky |
+| Background | Milky Way | Milky Way, stars, nebula; single and pair modes only, deep sky objects, Mars and the Moon have their real sky |
 | Character size | 3 | 1 – 8 |
 | Disk rotation speed | 100 % | 0 – 400 |
 | Camera height | 8° | -30 – 60 |

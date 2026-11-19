@@ -225,6 +225,7 @@ export class SpaceFrame {
             ['u_quasar', 1, [scene.quasar]],
             ['u_moon_tilt', 1, [scene.moonTilt]],
             ['u_moon_keep', 1, [scene.moonKeep]],
+            ['u_craft', 4, scene.craft],
         ];
 
         const camera = {yaw, pitch, roll: options.tilt, distance: scene.distance, fov};

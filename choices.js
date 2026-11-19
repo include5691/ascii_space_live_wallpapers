@@ -2,6 +2,7 @@ export const MODES = [
     ['single', 'Single'],
     ['pair', 'Pair'],
     ['galaxy', 'Deep sky'],
+    ['craft', 'Spacecraft'],
 ];
 
 export const OBJECTS = [
@@ -13,9 +14,15 @@ export const OBJECTS = [
     ['earth', 'Earth'],
 ];
 
-export const SINGLE_OBJECTS = [...OBJECTS, ['quasar', 'Quasar'], ['dyson', 'Dyson swarm'], ['crab', 'Crab Nebula'],
-    ['webb', 'James Webb telescope'], ['voyager', 'Voyager'], ['cassini', 'Cassini at Saturn'],
-    ['perseverance', 'Perseverance on Mars'], ['apollo', 'Apollo on the Moon']];
+export const SINGLE_OBJECTS = [...OBJECTS, ['quasar', 'Quasar'], ['dyson', 'Dyson swarm'], ['crab', 'Crab Nebula']];
+
+export const SPACECRAFT = [
+    ['webb', 'James Webb telescope'],
+    ['voyager', 'Voyager'],
+    ['cassini', 'Cassini at Saturn'],
+    ['perseverance', 'Perseverance on Mars'],
+    ['apollo', 'Apollo on the Moon'],
+];
 
 export const GALAXIES = [
     ['spiral', 'Spiral galaxy'],

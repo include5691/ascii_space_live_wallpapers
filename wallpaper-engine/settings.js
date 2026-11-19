@@ -1,4 +1,4 @@
-import {BACKGROUNDS, CENTERS, GALAXIES, MODES, OBJECTS, SINGLE_OBJECTS} from '../choices.js';
+import {BACKGROUNDS, CENTERS, GALAXIES, MODES, OBJECTS, SINGLE_OBJECTS, SPACECRAFT} from '../choices.js';
 
 const combo = (setting, text, choices, value, condition) => ({setting, text, type: 'combo', value, choices, condition});
 const slider = (setting, text, min, max, value, condition) => ({setting, text, type: 'slider', min, max, value, condition});
@@ -10,6 +10,7 @@ export const PROPERTIES = {
     pairobject: combo('first-object', 'First object', OBJECTS, 'black-hole', "mode.value == 'pair'"),
     secondobject: combo('second-object', 'Second object', OBJECTS, 'black-hole', "mode.value == 'pair'"),
     galaxy: combo('galaxy', 'Object', GALAXIES, 'spiral', "mode.value == 'galaxy'"),
+    craft: combo('craft', 'Spacecraft', SPACECRAFT, 'webb', "mode.value == 'craft'"),
     center: combo('center', 'Center', CENTERS, 'star', "mode.value == 'galaxy' && galaxy.value == 'system'"),
     orbitspeed: slider('orbit-speed', 'Speed, %', 0, 400, 100),
     spin: slider('spin', 'Black hole spin, %', 0, 99, 60),
@@ -20,7 +21,8 @@ export const PROPERTIES = {
     followcursor: toggle('follow-cursor', 'Follow cursor', true),
     cursorsensitivity: slider('cursor-sensitivity', 'Cursor sensitivity, %', 0, 200, 50, 'followcursor.value'),
     cursorsmoothing: slider('cursor-smoothing', 'Cursor smoothness, %', 0, 100, 40, 'followcursor.value'),
-    background: combo('background', 'Background', BACKGROUNDS, 'milky-way', "mode.value != 'galaxy'"),
+    background: combo('background', 'Background', BACKGROUNDS, 'milky-way',
+        "mode.value != 'galaxy' && !(mode.value == 'craft' && (craft.value == 'perseverance' || craft.value == 'apollo'))"),
     charsize: slider('char-size', 'Character size', 1, 8, 2),
     rotationspeed: slider('rotation-speed', 'Disk rotation speed, %', 0, 400, 100),
     elevation: slider('elevation', 'Camera height, °', -30, 60, 8),

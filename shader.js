@@ -1316,11 +1316,12 @@ float sdHexagon(vec2 p, float radius) {
 #ifdef HAS_WEBB
 const vec3 CRAFT_AMBIENT = vec3(0.05);
 const vec3 SUN_COLOR = vec3(1.0);
-const vec4 CRAFT_BOUND = vec4(0.0, 0.0, 0.0, 5.6);
+const vec4 CRAFT_BOUND = vec4(0.0, 0.0, 0.0, 5.7);
 const vec3 MIRROR_CENTER = vec3(0.0, 2.4, -0.5);
 const vec3 MIRROR_NORMAL = vec3(0.0, 0.41, 0.91);
 const vec3 MIRROR_UP = vec3(0.0, 0.91, -0.41);
-const float SEGMENT = 0.52;
+const float SEGMENT = 0.6;
+const vec2 HEX_STEP = vec2(1.0, 1.7320508);
 
 vec3 craftFrame(vec3 p) {
     p.y += 1.4;
@@ -1328,47 +1329,75 @@ vec3 craftFrame(vec3 p) {
     return p;
 }
 
+vec4 mirrorCell(vec2 uv) {
+    vec2 g = uv / SEGMENT;
+    vec4 cells = floor(vec4(g, g - vec2(0.5, 1.0)) / HEX_STEP.xyxy) + 0.5;
+    vec4 h = vec4(g - cells.xy * HEX_STEP, g - (cells.zw + 0.5) * HEX_STEP);
+    return dot(h.xy, h.xy) < dot(h.zw, h.zw) ? vec4(h.xy, cells.xy * HEX_STEP) : vec4(h.zw, (cells.zw + 0.5) * HEX_STEP);
+}
+
+float mirrorRing(vec2 center) {
+    float b = center.y / 0.8660254;
+    float a = center.x - 0.5 * b;
+    return 0.5 * (abs(a) + abs(b) + abs(a + b));
+}
+
+float segmentDistance(vec2 uv) {
+    vec4 cell = mirrorCell(uv);
+    float edge = max(abs(cell.x), dot(abs(cell.xy), vec2(0.5, 0.8660254)));
+    float ring = mirrorRing(cell.zw);
+    vec2 g = abs(uv / SEGMENT);
+    float outline = max(g.y, dot(g, vec2(0.8660254, 0.5))) - 2.25;
+    return (ring < 2.5 ? edge - 0.47 : max(0.53 - edge, outline)) * SEGMENT;
+}
+
+vec3 mirrorSpace(vec3 q) {
+    vec3 m = q - MIRROR_CENTER;
+    vec2 uv = vec2(m.x, dot(m, MIRROR_UP));
+    return vec3(uv.x, dot(m, MIRROR_NORMAL) + 0.04 * dot(uv, uv), uv.y);
+}
+
 vec2 craftMap(vec3 p) {
     vec3 q = craftFrame(p);
     vec2 a = abs(q.xz);
     float kite = max((a.x * 2.9 + a.y * 4.6 - 4.6 * 2.9) / 5.44, a.x - 4.25);
-    float spread = 0.5 + 0.5 * length(q.xz) / 4.6;
+    float spread = 0.35 + 0.65 * length(q.xz) / 4.6;
     float layer = 1e3;
     for (int i = 0; i < 5; i++)
-        layer = min(layer, abs(q.y - 0.11 * float(i) * spread));
-    vec2 hit = vec2(max(kite, layer - 0.02), 6.0);
-    hit = nearer(hit, vec2(sdBox(q - vec3(0.0, -0.45, 0.0), vec3(0.7, 0.3, 0.7)), 5.0));
-    hit = nearer(hit, vec2(sdBox(q - vec3(0.0, -0.55, 1.9), vec3(0.5, 0.03, 1.1)), 7.0));
-    hit = nearer(hit, vec2(sdBox(q - vec3(0.0, 1.3, -1.0), vec3(0.3, 0.8, 0.3)), 4.0));
-    hit = nearer(hit, vec2(sdBox(q - vec3(0.0, 2.3, -1.15), vec3(0.55, 0.55, 0.3)), 4.0));
-    vec3 m = q - MIRROR_CENTER;
-    vec2 uv = vec2(m.x, dot(m, MIRROR_UP));
-    float w = dot(m, MIRROR_NORMAL) + 0.04 * dot(uv, uv);
-    hit = nearer(hit, vec2(max(abs(w) - 0.06, sdHexagon(uv.yx, 1.35)), 3.0));
-    vec3 focus = MIRROR_NORMAL * 2.1;
-    vec3 side = vec3(1.0, 0.0, 0.0);
-    float struts = min(sdCapsule(m, MIRROR_UP * 1.4, focus, 0.035),
-        min(sdCapsule(m, (side * 0.866 - MIRROR_UP * 0.5) * 1.45, focus, 0.035),
-            sdCapsule(m, (-side * 0.866 - MIRROR_UP * 0.5) * 1.45, focus, 0.035)));
+        layer = min(layer, abs(q.y - 0.1 * float(i) * spread));
+    vec2 hit = vec2(max(kite, layer - 0.012), 6.0);
+    hit = nearer(hit, vec2(sdBox(q - vec3(-4.7, 0.18, 0.0), vec3(0.32, 0.015, 0.5)), 6.0));
+    float booms = min(sdCapsule(vec3(q.x, q.y, a.y), vec3(0.0, -0.06, 0.4), vec3(0.0, -0.06, 2.9), 0.05),
+        sdBox(vec3(a.x, q.y, q.z) - vec3(4.15, 0.22, 0.0), vec3(0.08, 0.28, 0.3)));
+    hit = nearer(hit, vec2(booms, 5.0));
+    hit = nearer(hit, vec2(sdBox(q - vec3(0.0, -0.45, 0.0), vec3(0.7, 0.3, 0.7)) - 0.02, 4.0));
+    hit = nearer(hit, vec2(sdBox(q - vec3(0.0, -0.6, 1.95), vec3(0.55, 0.025, 1.2)), 7.0));
+    vec3 dish = q - vec3(0.45, -1.0, -0.45);
+    hit = nearer(hit, vec2(sdDish(vec3(dish.x, -dish.y, dish.z), 0.32, 0.09, 0.02), 1.0));
+    hit = nearer(hit, vec2(sdCapsule(q, vec3(0.45, -0.75, -0.45), vec3(0.45, -0.95, -0.45), 0.04), 5.0));
+    hit = nearer(hit, vec2(sdCylinder(vec3(abs(q.x) - 0.4, q.y + 0.4, q.z - 0.72).xzy, 0.12, 0.09), 5.0));
+    hit = nearer(hit, vec2(sdCapsule(q, vec3(0.0, 0.2, -0.85), vec3(0.0, 1.5, -1.05), 0.16), 5.0));
+    hit = nearer(hit, vec2(sdBox(q - vec3(0.0, 1.95, -1.3), vec3(0.6, 0.45, 0.3)), 4.0));
+    hit = nearer(hit, vec2(sdBox(q - vec3(0.0, 2.1, -1.65), vec3(0.75, 0.6, 0.04)), 1.0));
+    vec3 m = mirrorSpace(q);
+    hit = nearer(hit, vec2(max(abs(m.y) - 0.05, segmentDistance(m.xz)), 3.0));
+    hit = nearer(hit, vec2(max(abs(m.y + 0.13) - 0.05, sdHexagon(m.zx, 1.3)), 4.0));
+    hit = nearer(hit, vec2(sdCylinder(m.xyz - vec3(0.0, 0.25, 0.0), 0.3, 0.16), 4.0));
+    vec3 focus = vec3(0.0, 2.1, 0.0);
+    float struts = min(sdCapsule(m, vec3(0.0, 0.0, 1.55), focus, 0.035),
+        min(sdCapsule(m, vec3(1.25, 0.0, -0.8), focus, 0.035), sdCapsule(m, vec3(-1.25, 0.0, -0.8), focus, 0.035)));
     hit = nearer(hit, vec2(struts, 4.0));
-    return nearer(hit, vec2(length(m - focus) - 0.17, 5.0));
+    hit = nearer(hit, vec2(sdCylinder(m - focus, 0.05, 0.2), 3.0));
+    return nearer(hit, vec2(sdBox(m - focus - vec3(0.0, 0.14, 0.0), vec3(0.12, 0.08, 0.12)), 4.0));
 }
 
 vec3 mirrorColor(vec3 local, vec3 n, vec3 dir) {
-    vec3 m = local - MIRROR_CENTER;
-    vec2 uv = vec2(m.x, dot(m, MIRROR_UP)) / SEGMENT;
-    const vec2 s = vec2(1.0, 1.7320508);
-    vec4 cells = floor(vec4(uv, uv - vec2(0.5, 1.0)) / s.xyxy) + 0.5;
-    vec4 h = vec4(uv - cells.xy * s, uv - (cells.zw + 0.5) * s);
-    vec4 cell = dot(h.xy, h.xy) < dot(h.zw, h.zw) ? vec4(h.xy, cells.xy) : vec4(h.zw, cells.zw + 0.5);
-    float edge = max(abs(cell.x), dot(abs(cell.xy), vec2(0.5, 0.866)));
-    float seam = smoothstep(0.43, 0.48, edge);
-    float center = 1.0 - step(0.6, length(cell.zw * s));
+    vec4 cell = mirrorCell(mirrorSpace(local).xz);
+    float edge = max(abs(cell.x), dot(abs(cell.xy), vec2(0.5, 0.8660254)));
     float tint = hash13(vec3(cell.zw * 7.0, 3.0));
     float shimmer = 0.5 + 0.5 * sin(2.0 * PI * (u_craft.x / 30.0 + tint));
     float glare = pow(max(dot(reflect(dir, n), normalize(vec3(-0.4, 0.6, 0.7))), 0.0), 8.0);
-    vec3 gold = FOIL * (0.55 + 0.35 * tint + 0.25 * shimmer + 1.2 * glare);
-    return mix(gold, DARK * 0.3, max(seam, center));
+    return FOIL * (0.55 + 0.35 * tint + 0.25 * shimmer + 1.2 * glare) * (1.0 - 0.85 * smoothstep(0.3, 0.42, edge));
 }
 #endif
 
@@ -1403,9 +1432,20 @@ vec2 craftMap(vec3 p) {
     booms = min(booms, sdCapsule(q, vec3(0.2, -0.75, -0.6), vec3(2.6, -2.9, -0.9), 0.02));
     booms = min(booms, sdCapsule(q, vec3(-0.2, -0.75, -0.6), vec3(-1.4, -3.4, -0.9), 0.02));
     hit = nearer(hit, vec2(booms, 4.0));
-    hit = nearer(hit, vec2(sdCapsule(q, vec3(-1.9, -0.38, -0.6), vec3(-3.1, -0.56, -0.7), 0.17), 4.0));
+    float rtgs = 1e3;
+    for (int k = 0; k < 3; k++) {
+        float along = 0.42 * float(k);
+        rtgs = min(rtgs, sdCapsule(q, vec3(-1.9 - along, -0.38 - 0.06 * along, -0.6), vec3(-2.2 - along, -0.43 - 0.06 * along, -0.62), 0.18));
+    }
+    hit = nearer(hit, vec2(rtgs, 4.0));
+    hit = nearer(hit, vec2(sdPrism(q.xzy - vec3(0.0, -0.62, 0.0), 10.0, 0.06, 0.88), 2.0));
+    hit = nearer(hit, vec2(sdCylinder(q.xzy - vec3(0.0, 1.62, 0.0), 0.06, 0.1), 5.0));
+    vec3 truss = vec3(abs(q.x), abs(q.y), q.z);
+    hit = nearer(hit, vec2(sdCapsule(truss, vec3(0.5, 0.5, -0.2), vec3(0.85, 0.85, 0.12), 0.04), 4.0));
+    hit = nearer(hit, vec2(sdBox(q - vec3(1.6, -0.15, -0.72), vec3(0.18, 0.15, 0.15)), 2.0));
     hit = nearer(hit, vec2(sdBox(q - vec3(2.75, -0.05, -0.95), vec3(0.28, 0.22, 0.3)), 5.0));
-    return nearer(hit, vec2(sdCapsule(q, vec3(2.7, 0.15, -0.95), vec3(2.7, 0.15, -0.35), 0.08), 1.0));
+    hit = nearer(hit, vec2(sdCapsule(q, vec3(2.95, 0.12, -0.9), vec3(2.95, 0.12, -0.5), 0.06), 1.0));
+    return nearer(hit, vec2(sdCapsule(q, vec3(2.62, 0.15, -0.95), vec3(2.62, 0.15, -0.35), 0.08), 1.0));
 }
 #endif
 
@@ -1442,7 +1482,14 @@ vec2 craftMap(vec3 p) {
     }
     hit = nearer(hit, vec2(rtgs, 4.0));
     hit = nearer(hit, vec2(sdCylinder((q - vec3(0.85, -0.2, 0.0)).yxz, 0.12, 0.58), 1.0));
+    hit = nearer(hit, vec2(sdCylinder((q - vec3(1.0, -0.2, 0.0)).yxz, 0.06, 0.42), 2.0));
     hit = nearer(hit, vec2(sdBox(q - vec3(-0.85, 0.55, 0.0), vec3(0.25, 0.45, 0.4)), 5.0));
+    hit = nearer(hit, vec2(sdBox(q - vec3(0.0, 0.6, 0.82), vec3(0.35, 0.3, 0.2)), 2.0));
+    hit = nearer(hit, vec2(sdCylinder(q - vec3(0.0, 2.85, 0.0), 0.08, 0.08), 5.0));
+    vec3 arms = vec3(abs(q.x), q.y, abs(q.z));
+    float thrusters = min(sdCapsule(arms, vec3(0.6, -1.45, 0.0), vec3(1.0, -1.45, 0.0), 0.04), sdCapsule(arms, vec3(0.0, -1.45, 0.6), vec3(0.0, -1.45, 1.0), 0.04));
+    thrusters = min(thrusters, min(sdBox(arms - vec3(1.02, -1.45, 0.0), vec3(0.07)), sdBox(arms - vec3(0.0, -1.45, 1.02), vec3(0.07))));
+    hit = nearer(hit, vec2(thrusters, 5.0));
     return nearer(hit, vec2(sdCapsule(q, vec3(0.0, 1.45, 0.6), vec3(0.3, 1.0, 4.6), 0.03), 4.0));
 }
 #endif
@@ -1495,7 +1542,12 @@ vec2 craftMap(vec3 p) {
         sdCapsule(q, vec3(1.4, 0.05, -0.3), vec3(1.5, -0.4, -0.1), 0.05));
     hit = nearer(hit, vec2(arm, 5.0));
     hit = nearer(hit, vec2(length(q - vec3(1.5, -0.5, -0.1)) - 0.16, 5.0));
-    hit = nearer(hit, vec2(sdCylinder(q - vec3(-0.35, 0.12, -0.35), 0.03, 0.2), 5.0));
+    hit = nearer(hit, vec2(sdCapsule(q, vec3(1.5, -0.55, -0.1), vec3(1.5, -0.8, -0.1), 0.03), 5.0));
+    hit = nearer(hit, vec2(sdPrism(q - vec3(-0.35, 0.12, -0.35), 6.0, 0.03, 0.2), 5.0));
+    hit = nearer(hit, vec2(sdBox(q - vec3(0.15, 0.1, 0.25), vec3(0.28, 0.06, 0.2)), 2.0));
+    hit = nearer(hit, vec2(sdCapsule(q, vec3(-0.6, 0.05, 0.35), vec3(-0.6, 0.45, 0.35), 0.025), 5.0));
+    vec3 fins = vec3(q.x, q.y, abs(q.z));
+    hit = nearer(hit, vec2(sdCapsule(fins, vec3(-1.0, 0.05, 0.2), vec3(-1.4, 0.42, 0.2), 0.04), 4.0));
 
     vec3 h = p - helicopter();
     hit = nearer(hit, vec2(sdBox(h, vec3(0.1, 0.08, 0.1)) - 0.02, 2.0));
@@ -1519,7 +1571,10 @@ vec3 groundAlbedo(vec3 p) {
     float grain = noise3(vec3(p.xz * 3.0, 1.0));
     float rock = smoothstep(0.64, 0.72, noise3(vec3(p.xz * 1.3, 4.0)));
     vec3 sand = mix(vec3(0.24, 0.12, 0.06), vec3(0.32, 0.18, 0.1), grain);
-    return mix(sand, vec3(0.2, 0.12, 0.08), rock);
+    vec3 r = craftFrame(p);
+    float tread = 0.6 + 0.4 * step(0.5, fract(r.x * 5.0));
+    float tracks = smoothstep(0.13, 0.06, abs(abs(r.z) - 0.88)) * step(r.x, -0.6) * exp(r.x / 14.0) * tread;
+    return mix(sand, vec3(0.2, 0.12, 0.08), rock) * (1.0 - 0.45 * tracks);
 }
 
 vec3 horizonColor(vec3 sun) {
@@ -1542,7 +1597,19 @@ vec3 craftDust(vec3 origin, vec3 dir, float far) {
     float miss = length(origin + dir * along - center);
     float lift = rotorSpeed() * (1.0 - smoothstep(0.3, 2.2, flightHeight()));
     float swirl = 0.6 + 0.6 * noise3(vec3((origin + dir * along).xz * 2.0, u_craft.x * 1.5));
-    return vec3(0.75, 0.5, 0.32) * exp(-square(miss / 0.9)) * lift * swirl * 0.5;
+    vec3 glow = vec3(0.75, 0.5, 0.32) * exp(-square(miss / 0.9)) * lift * swirl * 0.5;
+    float wander = 2.0 * PI * u_craft.x / 240.0;
+    vec2 devil = vec2(-38.0 + 14.0 * sin(wander), -70.0 + 8.0 * cos(2.0 * wander));
+    vec2 across = vec2(dir.z, -dir.x) / max(length(dir.xz), 1e-3);
+    float side = dot(origin.xz - devil, across);
+    float reach = dot(devil - origin.xz, dir.xz) / max(dot(dir.xz, dir.xz), 1e-4);
+    float height = origin.y + dir.y * reach + 1.0;
+    if (reach > 0.0 && reach < far && height > 0.0 && height < 14.0) {
+        float width = 0.6 + 0.25 * height;
+        float twist = 0.7 + 0.5 * noise3(vec3(side * 2.0, height * 1.5 - u_craft.x * 3.0, 5.0));
+        glow += vec3(0.7, 0.45, 0.28) * exp(-square(side / width)) * twist * (1.0 - height / 14.0) * 0.18;
+    }
+    return glow;
 }
 #endif
 
@@ -1570,6 +1637,14 @@ vec2 craftMap(vec3 p) {
     hit = nearer(hit, vec2(max(body, q.y - 1.8) - 0.04, 5.0));
     hit = nearer(hit, vec2(sdBox(q - vec3(-1.25, 0.85, 0.0), vec3(0.3, 0.5, 0.85)), 4.0));
     hit = nearer(hit, vec2(sdCylinder(q - vec3(0.1, 2.0, 0.0), 0.25, 0.45), 5.0));
+    vec3 front = vec3(q.x, q.y, abs(q.z));
+    hit = nearer(hit, vec2(sdBox(front - vec3(1.22, 1.3, 0.38), vec3(0.12, 0.17, 0.15)), 10.0));
+    hit = nearer(hit, vec2(sdBox(q - vec3(1.28, 0.5, 0.0), vec3(0.06, 0.26, 0.26)), 4.0));
+    hit = nearer(hit, vec2(sdBox(q - vec3(1.65, -0.38, 0.0), vec3(0.32, 0.03, 0.32)), 5.0));
+    vec3 rcs = vec3(q.x, q.y, abs(q.z)) - vec3(0.25, 1.5, 1.2);
+    rcs.x = abs(rcs.x) - 0.6;
+    hit = nearer(hit, vec2(min(sdBox(rcs, vec3(0.2, 0.04, 0.04)), sdBox(rcs, vec3(0.04, 0.2, 0.04))), 5.0));
+    hit = nearer(hit, vec2(sdCapsule(q, vec3(0.0, -2.1, 0.0), vec3(0.0, -2.45, 0.0), 0.42), 4.0));
     hit = nearer(hit, vec2(sdCapsule(q, vec3(-0.6, 1.8, 0.7), vec3(-0.9, 2.5, 0.9), 0.04), 4.0));
     hit = nearer(hit, vec2(length(q - vec3(-0.9, 2.6, 0.9)) - 0.28, 1.0));
     hit = nearer(hit, vec2(sdCapsule(q, vec3(4.4, -3.1, 2.6), vec3(4.4, -0.5, 2.6), 0.035), 5.0));
@@ -1604,7 +1679,14 @@ float groundHeight(vec2 q) {
 vec3 groundAlbedo(vec3 p) {
     float grain = noise3(vec3(p.xz * 2.5, 3.0));
     float mare = fbm(vec3(p.xz * 0.05, 8.0), 3.0);
-    return vec3(0.2, 0.2, 0.195) * (0.75 + 0.35 * grain) * (0.8 + 0.4 * mare);
+    vec3 r = craftFrame(p);
+    vec2 path = r.xz - vec2(1.6, 0.4);
+    vec2 walk = vec2(2.8, 2.2);
+    float along = clamp(dot(path, walk) / dot(walk, walk), 0.0, 1.0);
+    float trail = smoothstep(0.6, 0.2, length(path - walk * along)) + smoothstep(1.2, 0.5, length(r.xz - vec2(4.4, 2.6)));
+    vec2 step2 = fract(r.xz * 2.2) - 0.5;
+    float prints = clamp(trail, 0.0, 1.0) * step(0.55, hash13(vec3(floor(r.xz * 2.2), 4.0))) * smoothstep(0.35, 0.2, length(step2 * vec2(1.0, 1.8)));
+    return vec3(0.2, 0.2, 0.195) * (0.75 + 0.35 * grain) * (0.8 + 0.4 * mare) * (1.0 - 0.5 * prints);
 }
 
 vec3 horizonColor(vec3 sun) {
@@ -1658,6 +1740,9 @@ vec3 craftSurface(float material, vec3 p, vec3 n, vec3 dir, vec3 sun, float shad
         float crinkle = noise3(local * 9.0);
         albedo = FOIL * (0.55 + 0.7 * crinkle);
         shine = 0.6 + 2.0 * crinkle;
+#ifdef HAS_CASSINI
+        albedo *= 0.7 + 0.3 * step(0.25, fract(local.y * 1.6));
+#endif
 #ifdef HAS_APOLLO
         float face = floor(mod(atan(local.z, local.x) / (PI / 4.0) + 8.5, 8.0));
         albedo *= mod(face, 2.0) < 0.5 ? 1.0 : 0.35;
@@ -1675,7 +1760,8 @@ vec3 craftSurface(float material, vec3 p, vec3 n, vec3 dir, vec3 sun, float shad
         albedo = METAL;
         shine = 0.7;
     } else if (material < 6.5) {
-        albedo = vec3(0.6, 0.45, 0.85);
+        float wrinkles = fbm(vec3(local.x * 0.6, local.z * 2.5, 1.0), 3.0);
+        albedo = vec3(0.6, 0.45, 0.85) * (0.6 + 0.8 * wrinkles);
         glow = albedo * 0.06 * (1.0 + noise3(local * 3.0));
         shine = 0.8;
     } else if (material < 7.5) {

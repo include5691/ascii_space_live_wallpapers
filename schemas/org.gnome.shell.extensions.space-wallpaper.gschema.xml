@@ -6,9 +6,21 @@
         <choice value="single"/>
         <choice value="pair"/>
         <choice value="galaxy"/>
+        <choice value="craft"/>
       </choices>
       <default>'single'</default>
-      <summary>Show one object, a pair orbiting each other, or a deep sky scene</summary>
+      <summary>Show one object, a pair orbiting each other, a deep sky scene or a spacecraft</summary>
+    </key>
+    <key name="craft" type="s">
+      <choices>
+        <choice value="webb"/>
+        <choice value="voyager"/>
+        <choice value="cassini"/>
+        <choice value="perseverance"/>
+        <choice value="apollo"/>
+      </choices>
+      <default>'webb'</default>
+      <summary>The spacecraft scene</summary>
     </key>
     <key name="first-object" type="s">
       <choices>
@@ -21,14 +33,9 @@
         <choice value="quasar"/>
         <choice value="dyson"/>
         <choice value="crab"/>
-        <choice value="webb"/>
-        <choice value="voyager"/>
-        <choice value="cassini"/>
-        <choice value="perseverance"/>
-        <choice value="apollo"/>
       </choices>
       <default>'black-hole'</default>
-      <summary>The object in single mode, and the first object of a pair; a quasar, a Dyson swarm, the Crab Nebula and the spacecraft scenes are shown alone only</summary>
+      <summary>The object in single mode, and the first object of a pair; a quasar, a Dyson swarm and the Crab Nebula are shown alone only</summary>
     </key>
     <key name="second-object" type="s">
       <choices>

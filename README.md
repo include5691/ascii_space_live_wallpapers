@@ -23,7 +23,7 @@ Light rays bend around the black hole, so the far side of the disk shows up abov
 
 - Real-time ray tracing of light around a black hole, in a GLSL shader.
 - Drawn as ASCII characters in the scene's own colors, from ` .:-+=*%#@`.
-- Fourteen object types:
+- Nine object types:
   - a spinning black hole with an accretion disk. Spin drags space around it, which squashes the shadow into a D shape, and pulls the disk's inner edge closer, following the Kerr ISCO;
   - a lone neutron star (pulsar) with rotating hot spots and sweeping beams, and no disk, like most real pulsars;
   - a Sun-like star with limb darkening, granulation, sunspots and a corona;
@@ -32,12 +32,7 @@ Light rays bend around the black hole, so the far side of the disk shows up abov
   - Earth: real continents from a world map, oceans with sun glint, drifting clouds, polar ice, a blue atmosphere, city lights and green auroras on the night side, the Moon with dark maria, the ISS and a Starlink train;
   - a quasar, shown alone: a giant black hole with a hot blue-white disk, jets with bright knots far longer than the disk, and a faint host galaxy;
   - a Dyson swarm, shown alone: a Sun-like star circled by six tilted rings of solar collectors. Their sunlit faces glint on the far side, their dark backs cross the star's face, and a few panels are still missing;
-  - the Crab Nebula, shown alone: a pulsar inside a blue synchrotron glow with red and yellow filaments, a bright inner ring, polar jets and ripples that run outward;
-  - the James Webb telescope, shown alone: a gold mirror of hexagon segments on struts above a purple five-layer sunshield, lit by the Sun from below, slowly turning;
-  - Voyager, shown alone: its big white dish turned toward the far Sun, the golden record on its side, the science and RTG booms, the long magnetometer boom and the radio antennas;
-  - Cassini at Saturn: the probe with its dish, gold foil, RTGs and the Huygens probe, slowly spinning in front of a ringed Saturn and its moons;
-  - Perseverance on Mars: the rover with its six wheels, mast, arm and RTG on a red, rocky plain, while Ingenuity takes off, flies, kicks up dust and lands again every minute;
-  - Apollo on the Moon: the lunar module with its gold descent stage and its legs, and the flag, on a cratered gray plain with black shadows, under a black sky with the Earth.
+  - the Crab Nebula, shown alone: a pulsar inside a blue synchrotron glow with red and yellow filaments, a bright inner ring, polar jets and ripples that run outward.
 - A deep sky mode, where every object sits under its real sky:
   - a spiral galaxy with a yellow bulge, blue trailing arms and pink star-forming knots, turning slowly in black intergalactic space dotted with faint far galaxies, as in the Hubble Deep Field;
   - two spiral galaxies colliding: a real gravity simulation of thousands of stars. They swing past each other, throw out long tidal tails, fall back and merge, then it starts again. Far galaxies dot the black sky around them;
@@ -50,6 +45,12 @@ Light rays bend around the black hole, so the far side of the disk shows up abov
       - a black hole pulls the planets in one by one and tears each planet and its moons into a cloud of fragments. The fragments swirl around it, heat up, feed its disk or fly away, then the system starts again;
       - a wormhole is lighter than the Sun, so the planets escape on real gravity paths and fly apart into space, then the system starts again;
       - a neutron star is heavier than the Sun, so the planets keep orbiting, but its pulsar wind blows glowing tails off every planet.
+- A spacecraft mode with five famous missions:
+  - the James Webb telescope: a gold mirror of 18 hexagon segments with its secondary mirror on three struts, the instrument module and the tower, above a wrinkled purple five-layer sunshield with its booms, pallets and trim flap. Below the shield are the bus, the solar array and the high-gain antenna, lit by the Sun from below. It rocks slowly;
+  - Voyager: its big white dish turned toward the far Sun on a truss, the gold-banded bus with the golden record, three RTGs on their boom, the science boom with the cosmic ray box and the scan platform cameras, the long magnetometer boom and the radio antennas;
+  - Cassini at Saturn: the dish with its low-gain antenna, the striped gold body, the fields and particles pallet, the RTGs, the thruster arms and the Huygens probe, slowly spinning in front of a ringed Saturn and its moons;
+  - Perseverance on Mars: the rover with its six wheels, rocker-bogies, mast, arm with drill, hexagonal antenna and RTG, leaving wheel tracks on a red, rocky plain. Ingenuity takes off, flies, kicks up dust and lands every minute, and a dust devil wanders on the horizon;
+  - Apollo on the Moon: the lunar module with its gold descent stage, engine bell, legs, windows, hatch, porch and thruster quads, and footprints leading to the flag, on a cratered gray plain with black shadows, under a black sky with the Earth.
 - Real time: Earth's day and night follow the real clock and season, the Moon shows today's phase, and the solar system planets sit where they really are today.
 - Three skies for single and pair modes: the Milky Way, a glowing band with dust lanes and a bright core; a pink and teal emission nebula with dark dust; or plain stars. All are bent by every black hole, neutron star and wormhole.
 - A single star lives out one of two real fates, taking turns:
@@ -134,12 +135,13 @@ gnome-extensions prefs space-wallpaper@include5691.github.io
 
 | Setting | Default | Range |
 | --- | --- | --- |
-| Mode | single | single, pair, deep sky |
+| Mode | single | single, pair, deep sky, spacecraft |
 | Black hole spin | 60 % | 0 – 99 |
-| Object (single) | black hole | black hole, neutron star, star, wormhole, ringed planet, Earth, quasar, Dyson swarm, Crab Nebula, James Webb telescope, Voyager, Cassini at Saturn, Perseverance on Mars, Apollo on the Moon |
+| Object (single) | black hole | black hole, neutron star, star, wormhole, ringed planet, Earth, quasar, Dyson swarm, Crab Nebula |
 | First object (pair) | black hole | black hole, neutron star, star, wormhole, ringed planet, Earth |
 | Second object (pair) | black hole | black hole, neutron star, star, wormhole, ringed planet, Earth |
 | Center (deep sky solar system) | Sun | Sun, black hole, neutron star, wormhole |
+| Spacecraft | James Webb telescope | James Webb telescope, Voyager, Cassini at Saturn, Perseverance on Mars, Apollo on the Moon |
 | Object (deep sky) | spiral galaxy | spiral galaxy, galaxy collision, star cluster, Pillars of Creation, Big Bang, solar system birth, solar system |
 | Planet names (solar system) | off | |
 | Real time (Earth, solar system) | off | |

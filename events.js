@@ -100,12 +100,9 @@ const SCENARIO_BACKDROPS = {
     perseverance: [],
     apollo: [],
 };
-export const PAIR_STAND_INS = {
-    'quasar': 'black-hole', 'dyson': 'star', 'crab': 'neutron-star',
-    'webb': 'star', 'voyager': 'star', 'cassini': 'planet', 'perseverance': 'planet', 'apollo': 'earth',
-};
+export const PAIR_STAND_INS = {'quasar': 'black-hole', 'dyson': 'star', 'crab': 'neutron-star'};
 const CRAFTS = {
-    webb: {distance: 17, lift: 0.4, light: [0.35, -0.75, 0.55]},
+    webb: {distance: 12.5, lift: 0.35, light: [0.35, -0.75, 0.55]},
     voyager: {distance: 19, lift: 0.15, light: [-0.9, 0.3, 0.35]},
     cassini: {distance: 15, lift: 0.05, light: [0.6, 0.3, 0.75],
         body: {kind: 'planet', position: [-30, -7, -72], scale: 5}},
@@ -121,6 +118,8 @@ export function selectedScene(settings) {
     const galaxy = settings.get_string('galaxy');
     if (mode === 'galaxy' && galaxy === 'system')
         return {mode: 'system', objects: [settings.get_string('center')]};
+    if (mode === 'craft')
+        return {mode, objects: [settings.get_string('craft')]};
     return {
         mode,
         objects: {
@@ -290,6 +289,8 @@ function devourStage(index, orbit, t) {
         size: 1 - smooth(tear, tear + BREAK_TIME, t),
     };
 }
+
+export const hasOwnSky = kind => kind in SCENARIO_BACKDROPS;
 
 function singleScenario(kind, events) {
     if (kind === 'quasar' || kind === 'dyson' || kind === 'crab' || kind in CRAFTS)

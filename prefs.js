@@ -4,8 +4,8 @@ import Gtk from 'gi://Gtk';
 
 import {ExtensionPreferences} from 'resource:///org/gnome/Shell/Extensions/js/extensions/prefs.js';
 
-import {BACKGROUNDS, CENTERS, GALAXIES, MODES, OBJECTS, SINGLE_OBJECTS} from './choices.js';
-import {PAIR_STAND_INS, selectedScene} from './events.js';
+import {BACKGROUNDS, CENTERS, GALAXIES, MODES, OBJECTS, SINGLE_OBJECTS, SPACECRAFT} from './choices.js';
+import {PAIR_STAND_INS, hasOwnSky, selectedScene} from './events.js';
 
 const EVENT_PAIRS = new Set([
     'black-hole+black-hole',
@@ -102,12 +102,14 @@ export default class SpaceWallpaperPreferences extends ExtensionPreferences {
         const firstObject = comboRow(settings, 'first-object', 'First object', OBJECTS, PAIR_STAND_INS);
         const center = comboRow(settings, 'center', 'Center', CENTERS);
         const galaxy = comboRow(settings, 'galaxy', 'Object', GALAXIES);
+        const craft = comboRow(settings, 'craft', 'Spacecraft', SPACECRAFT);
         const labels = switchRow(settings, 'labels', 'Planet names');
         const realTime = switchRow(settings, 'real-time', 'Real time',
             "Earth's day and night, the Moon's phase and the planets follow the real clock");
         objects.add(singleObject);
         objects.add(firstObject);
         objects.add(galaxy);
+        objects.add(craft);
         objects.add(center);
         objects.add(secondObject);
         objects.add(orbitSpeed);
@@ -160,23 +162,25 @@ export default class SpaceWallpaperPreferences extends ExtensionPreferences {
             const mode = settings.get_string('mode');
             const system = scene === 'system';
             const galaxyObject = mode === 'galaxy' ? settings.get_string('galaxy') : null;
-            background.set_visible(mode !== 'galaxy');
+            const spacecraft = mode === 'craft';
+            background.set_visible(mode !== 'galaxy' && !(spacecraft && hasOwnSky(selected[0])));
             const eventsOn = settings.get_boolean('events') && !system;
             singleObject.set_visible(mode === 'single');
             firstObject.set_visible(mode === 'pair');
             center.set_visible(system);
             galaxy.set_visible(mode === 'galaxy');
+            craft.set_visible(spacecraft);
             secondObject.set_visible(mode === 'pair');
             labels.set_sensitive(system || galaxyObject === 'birth');
             realTime.set_sensitive(system || selected.includes('earth'));
-            orbitSpeed.set_sensitive(pair || system || mode === 'galaxy' || (eventsOn && hasEvents(selected)));
+            orbitSpeed.set_sensitive(pair || system || mode === 'galaxy' || spacecraft || (eventsOn && hasEvents(selected)));
             spin.set_sensitive(hasBlackHole(selected, eventsOn));
-            events.set_sensitive(hasEvents(selected, system));
+            events.set_sensitive(!spacecraft && hasEvents(selected, system));
             const disk = hasDisk(selected, eventsOn);
             [rotation, doppler].forEach(row => row.set_sensitive(disk));
         };
         syncObjectRows();
-        ['mode', 'first-object', 'second-object', 'center', 'galaxy', 'events'].forEach(key => connectSetting(settings, key, spin, syncObjectRows));
+        ['mode', 'first-object', 'second-object', 'center', 'galaxy', 'craft', 'events'].forEach(key => connectSetting(settings, key, spin, syncObjectRows));
 
         const page = new Adw.PreferencesPage();
         [objects, performance, cursor, scene].forEach(group => page.add(group));

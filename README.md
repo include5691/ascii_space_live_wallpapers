@@ -45,12 +45,21 @@ Light rays bend around the black hole, so the far side of the disk shows up abov
       - a black hole pulls the planets in one by one and tears each planet and its moons into a cloud of fragments. The fragments swirl around it, heat up, feed its disk or fly away, then the system starts again;
       - a wormhole is lighter than the Sun, so the planets escape on real gravity paths and fly apart into space, then the system starts again;
       - a neutron star is heavier than the Sun, so the planets keep orbiting, but its pulsar wind blows glowing tails off every planet.
-- A spacecraft mode with five famous missions:
+- A spacecraft mode with fourteen famous missions:
   - the James Webb telescope: a gold mirror of 18 hexagon segments with its secondary mirror on three struts, the instrument module and the tower, above a wrinkled purple five-layer sunshield with its booms, pallets and trim flap. Below the shield are the bus, the solar array and the high-gain antenna, lit by the Sun from below. It rocks slowly;
+  - the Hubble telescope: the silver tube with its open aperture door, the faceted equipment bays, two solar wings and two high-gain antennas, high above the clouds of the Earth;
+  - SpaceX Starship in Earth orbit: the steel hull with its black heat tiles, forward and aft flaps, windows and six Raptor engines, slowly rolling above the Earth;
   - Voyager: its big white dish turned toward the far Sun on a truss, the gold-banded bus with the golden record, three RTGs on their boom, the science boom with the cosmic ray box and the scan platform cameras, the long magnetometer boom and the radio antennas;
+  - New Horizons at Pluto: the gold triangular body with its big dish, RTG with fins and LORRI camera, flying past Pluto with its bright heart, dark whale and blue haze, and Charon behind;
+  - the Parker Solar Probe: its heat shield turned to the Sun, the hexagonal body, radiators, small angled solar wings and magnetometer boom, right next to a huge Sun with granules, sunspots, corona streamers and prominences;
+  - Juno at Jupiter: the spinning hexagonal body with its three long solar wings, the magnetometer on one wing and the dish, above Jupiter's pole and its ring of swirling cyclones;
+  - the Galileo probe in Jupiter: the probe hangs under its striped parachute and sinks through amber haze, above a moving cloud deck with flashes of lightning, while bits of cloud rise past it;
   - Cassini at Saturn: the dish with its low-gain antenna, the striped gold body, the fields and particles pallet, the RTGs, the thruster arms and the Huygens probe, slowly spinning in front of a ringed Saturn and its moons;
+  - Huygens on Titan: the saucer-shaped probe with its spin vanes and its parachute lying on the ground, on an orange plain of ice pebbles under a thick haze with a faint Saturn;
+  - Rosetta and Philae at a comet: the orbiter with its two long solar wings and dish above the dark two-lobed comet, Philae standing on the small lobe, gas jets shooting out and dust drifting by;
   - Perseverance on Mars: the rover with its six wheels, rocker-bogies, mast, arm with drill, hexagonal antenna and RTG, leaving wheel tracks on a red, rocky plain. Ingenuity takes off, flies, kicks up dust and lands every minute, and a dust devil wanders on the horizon;
-  - Apollo on the Moon: the lunar module with its gold descent stage, engine bell, legs, windows, hatch, porch and thruster quads, and footprints leading to the flag, on a cratered gray plain with black shadows, under a black sky with the Earth.
+  - Apollo on the Moon: the lunar module with its gold descent stage, engine bell, legs, windows, hatch, porch and thruster quads, and footprints leading to the flag, on a cratered gray plain with black shadows, under a black sky with the Earth;
+  - Venera 13 on Venus: the lander with its landing ring, round body, saw-tooth drag plate, striped antenna, drill arm, color chart and lens cap, on cracked rock plates under a thick yellow-orange sky.
 - Real time: Earth's day and night follow the real clock and season, the Moon shows today's phase, and the solar system planets sit where they really are today.
 - Three skies for single and pair modes: the Milky Way, a glowing band with dust lanes and a bright core; a pink and teal emission nebula with dark dust; or plain stars. All are bent by every black hole, neutron star and wormhole.
 - A single star lives out one of two real fates, taking turns:
@@ -141,7 +150,7 @@ gnome-extensions prefs space-wallpaper@include5691.github.io
 | First object (pair) | black hole | black hole, neutron star, star, wormhole, ringed planet, Earth |
 | Second object (pair) | black hole | black hole, neutron star, star, wormhole, ringed planet, Earth |
 | Center (deep sky solar system) | Sun | Sun, black hole, neutron star, wormhole |
-| Spacecraft | James Webb telescope | James Webb telescope, Voyager, Cassini at Saturn, Perseverance on Mars, Apollo on the Moon |
+| Spacecraft | James Webb telescope | James Webb telescope, Hubble telescope, Starship in Earth orbit, Voyager, New Horizons at Pluto, Parker Solar Probe, Juno at Jupiter, Galileo probe in Jupiter, Cassini at Saturn, Huygens on Titan, Rosetta and Philae at a comet, Perseverance on Mars, Apollo on the Moon, Venera 13 on Venus |
 | Object (deep sky) | spiral galaxy | spiral galaxy, galaxy collision, star cluster, Pillars of Creation, Big Bang, solar system birth, solar system |
 | Planet names (solar system) | off | |
 | Real time (Earth, solar system) | off | |
@@ -152,7 +161,7 @@ gnome-extensions prefs space-wallpaper@include5691.github.io
 | Follow cursor | on | |
 | Sensitivity | 50 % | 0 – 200 |
 | Smoothness | 40 % | 0 – 100 |
-| Background | Milky Way | Milky Way, stars, nebula; single and pair modes only, deep sky objects, Mars and the Moon have their real sky |
+| Background | Milky Way | Milky Way, stars, nebula; single and pair modes only, deep sky objects, Mars, the Moon, Venus, Titan and inside Jupiter have their real sky |
 | Character size | 3 | 1 – 8 |
 | Disk rotation speed | 100 % | 0 – 400 |
 | Camera height | 8° | -30 – 60 |

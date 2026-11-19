@@ -1305,6 +1305,27 @@ float sdDish(vec3 p, float rim, float depth, float thickness) {
     return max(shell, max(length(p.xz) - rim, p.y - depth - thickness));
 }
 
+float sdTorus(vec3 p, float major, float minor) {
+    return length(vec2(length(p.xz) - major, p.y)) - minor;
+}
+
+float sdEllipsoid(vec3 p, vec3 radii) {
+    float k = length(p / radii);
+    return k * (k - 1.0) / length(p / (radii * radii));
+}
+
+vec3 repeatAround(vec3 p, float count) {
+    float sector = 2.0 * PI / count;
+    float angle = mod(atan(p.z, p.x) + sector * 0.5, sector) - sector * 0.5;
+    return vec3(length(p.xz) * cos(angle), p.y, length(p.xz) * sin(angle));
+}
+
+vec3 orientTo(vec3 p, vec3 f) {
+    vec3 r = normalize(cross(vec3(0.0, 1.0, 0.0), f));
+    vec3 u = cross(f, r);
+    return vec3(dot(p, r), dot(p, u), dot(p, f));
+}
+
 float sdHexagon(vec2 p, float radius) {
     const vec3 k = vec3(-0.866025404, 0.5, 0.577350269);
     p = abs(p);
@@ -1409,9 +1430,7 @@ const vec4 CRAFT_BOUND = vec4(0.0, 0.5, -0.5, 6.0);
 vec3 craftFrame(vec3 p) {
     vec3 f = lightFrom(vec3(0.0));
     f.xz = rotated(f.xz, 0.1 * cycle(240.0, 0.0));
-    vec3 r = normalize(cross(vec3(0.0, 1.0, 0.0), f));
-    vec3 u = cross(f, r);
-    return vec3(dot(p, r), dot(p, u), dot(p, f));
+    return orientTo(p, f);
 }
 
 vec2 craftMap(vec3 p) {
@@ -1495,10 +1514,13 @@ vec2 craftMap(vec3 p) {
 #endif
 
 #ifdef HAS_MARS
+#define CRAFT_SKY
+#define CRAFT_DUST
 const vec3 CRAFT_AMBIENT = vec3(0.05, 0.035, 0.025);
 const vec3 SUN_COLOR = vec3(1.0, 0.8, 0.6);
 const vec4 CRAFT_BOUND = vec4(-0.8, 0.2, -0.5, 4.3);
 const float FLIGHT = 60.0;
+const float FOG = 110.0;
 
 vec3 craftFrame(vec3 p) {
     p.xz = rotated(p.xz, -0.55);
@@ -1581,7 +1603,7 @@ vec3 horizonColor(vec3 sun) {
     return vec3(0.1, 0.06, 0.04);
 }
 
-vec4 craftSky(vec3 d, vec3 sun) {
+vec4 craftSky(vec3 origin, vec3 d, vec3 sun) {
     float up = max(d.y, 0.0);
     float toward = dot(d, sun);
     vec3 base = mix(vec3(0.1, 0.06, 0.04), vec3(0.012, 0.008, 0.01), smoothstep(0.0, 0.3, up));
@@ -1617,6 +1639,7 @@ vec3 craftDust(vec3 origin, vec3 dir, float far) {
 const vec3 CRAFT_AMBIENT = vec3(0.012, 0.014, 0.02);
 const vec3 SUN_COLOR = vec3(1.1, 1.08, 1.03);
 const vec4 CRAFT_BOUND = vec4(1.2, -0.5, 0.6, 6.4);
+const float FOG = 110.0;
 
 vec3 craftFrame(vec3 p) {
     p.xz = rotated(p.xz, -0.6);
@@ -1692,13 +1715,661 @@ vec3 groundAlbedo(vec3 p) {
 vec3 horizonColor(vec3 sun) {
     return vec3(0.0);
 }
+#endif
 
-vec4 craftSky(vec3 d, vec3 sun) {
-    return vec4(0.0);
+#ifdef HAS_HUBBLE
+#define CRAFT_SPECIAL
+const vec3 CRAFT_AMBIENT = vec3(0.04, 0.05, 0.07);
+const vec3 SUN_COLOR = vec3(1.05, 1.03, 1.0);
+const vec4 CRAFT_BOUND = vec4(0.4, 0.0, 0.0, 5.2);
+
+vec3 craftFrame(vec3 p) {
+    p.xz = rotated(p.xz, 1.15 + 0.25 * cycle(180.0, 0.0));
+    p.xy = rotated(p.xy, 0.12);
+    return p;
+}
+
+vec2 craftMap(vec3 p) {
+    vec3 q = craftFrame(p);
+    vec3 tube = q.yxz;
+    float shell = max(sdCylinder(tube - vec3(0.0, 0.7, 0.0), 1.55, 0.72), -sdCylinder(tube - vec3(0.0, 1.65, 0.0), 0.7, 0.67));
+    vec2 hit = vec2(shell, 12.0);
+    hit = nearer(hit, vec2(sdCylinder(tube - vec3(0.0, 0.95, 0.0), 0.03, 0.68), 10.0));
+    hit = nearer(hit, vec2(sdPrism(tube - vec3(0.0, -1.55, 0.0), 10.0, 0.7, 0.84), 12.0));
+    hit = nearer(hit, vec2(sdCylinder(tube - vec3(0.0, -2.28, 0.0), 0.04, 0.62), 4.0));
+    hit = nearer(hit, vec2(min(sdTorus(tube - vec3(0.0, -0.1, 0.0), 0.73, 0.03), sdTorus(tube - vec3(0.0, 0.95, 0.0), 0.73, 0.03)), 5.0));
+    vec3 door = q - vec3(2.25, 0.74, 0.0);
+    door.xy = rotated(door.xy, -1.9);
+    hit = nearer(hit, vec2(sdCylinder((door - vec3(0.0, -0.74, 0.0)).yxz, 0.025, 0.74), 12.0));
+    vec3 side = vec3(q.x, q.y, abs(q.z));
+    hit = nearer(hit, vec2(sdCapsule(side, vec3(-0.55, 0.0, 0.8), vec3(-0.55, 0.0, 4.7), 0.035), 5.0));
+    vec3 wing = side - vec3(-0.55, 0.0, 2.8);
+    wing.xy = rotated(wing.xy, -0.9);
+    hit = nearer(hit, vec2(sdBox(wing, vec3(0.55, 0.012, 1.85)), 7.0));
+    vec3 mast = vec3(q.x, abs(q.y), q.z);
+    hit = nearer(hit, vec2(sdCapsule(mast, vec3(0.5, 0.7, 0.0), vec3(0.5, 1.9, 0.0), 0.03), 5.0));
+    hit = nearer(hit, vec2(sdDish((mast - vec3(0.56, 1.95, 0.0)).yxz, 0.4, 0.1, 0.02), 1.0));
+    hit = nearer(hit, vec2(sdCapsule(q, vec3(1.8, 0.7, 0.0), vec3(1.8, 0.98, 0.0), 0.04), 5.0));
+    return nearer(hit, vec2(sdCapsule(q, vec3(-0.3, 0.0, 0.73), vec3(1.8, 0.0, 0.73), 0.018), 5.0));
+}
+
+vec4 craftSpecial(vec3 p, vec3 local, vec3 n) {
+    vec2 panel = vec2(local.x * 2.2, atan(local.z, local.y) * 1.6);
+    vec2 cell = abs(fract(panel) - 0.5);
+    float seam = smoothstep(0.43, 0.49, max(cell.x, cell.y));
+    float sheen = hash13(vec3(floor(panel), 5.0));
+    return vec4(vec3(0.78, 0.8, 0.84) * (0.75 + 0.3 * sheen) * (1.0 - 0.45 * seam), 1.2);
+}
+#endif
+
+#ifdef HAS_STARSHIP
+#define CRAFT_SPECIAL
+const vec3 CRAFT_AMBIENT = vec3(0.04, 0.05, 0.07);
+const vec3 SUN_COLOR = vec3(1.05, 1.03, 1.0);
+const vec4 CRAFT_BOUND = vec4(0.0, 0.0, 0.0, 3.9);
+
+vec3 craftFrame(vec3 p) {
+    p.xz = rotated(p.xz, 0.35 + 0.2 * cycle(200.0, 0.0));
+    p.xy = rotated(p.xy, 0.08);
+    p.yz = rotated(p.yz, 0.2 + 0.1 * cycle(90.0, 0.2));
+    return p;
+}
+
+vec2 craftMap(vec3 p) {
+    vec3 q = craftFrame(p);
+    vec3 tube = q.yxz;
+    float hull = min(sdCylinder(tube - vec3(0.0, -0.7, 0.0), 2.3, 0.6), sdEllipsoid(q - vec3(1.6, 0.0, 0.0), vec3(1.8, 0.6, 0.6)));
+    vec2 hit = vec2(hull, 12.0);
+    vec3 side = vec3(q.x, q.y, abs(q.z));
+    vec3 aft = side - vec3(-2.4, -0.05, 0.95);
+    aft.xz = rotated(aft.xz, -0.12);
+    hit = nearer(hit, vec2(sdBox(aft, vec3(0.55, 0.035, 0.42)) - 0.02, 12.0));
+    vec3 fore = side - vec3(2.05, -0.05, 0.62);
+    fore.xz = rotated(fore.xz, 0.45);
+    hit = nearer(hit, vec2(sdBox(fore, vec3(0.32, 0.03, 0.24)) - 0.02, 12.0));
+    vec3 engines = vec3(q.y, q.x, q.z);
+    vec3 outer = repeatAround(engines, 3.0);
+    hit = nearer(hit, vec2(sdCapsule(outer, vec3(0.36, -2.95, 0.0), vec3(0.36, -3.3, 0.0), 0.16), 4.0));
+    engines.xz = rotated(engines.xz, PI / 3.0);
+    vec3 inner = repeatAround(engines, 3.0);
+    hit = nearer(hit, vec2(sdCapsule(inner, vec3(0.14, -2.95, 0.0), vec3(0.14, -3.2, 0.0), 0.08), 4.0));
+    hit = nearer(hit, vec2(sdCylinder(tube - vec3(0.0, -3.0, 0.0), 0.02, 0.56), 4.0));
+    float row = q.x - 1.0 - 0.22 * clamp(floor((q.x - 1.0) / 0.22 + 0.5), 0.0, 3.0);
+    return nearer(hit, vec2(sdBox(vec3(row, q.y - 0.57, q.z), vec3(0.06, 0.05, 0.07)), 10.0));
+}
+
+vec4 craftSpecial(vec3 p, vec3 local, vec3 n) {
+    float rings = smoothstep(0.42, 0.5, abs(fract(local.x * 5.5) - 0.5));
+    vec3 steel = vec3(0.78, 0.79, 0.82) * (0.85 + 0.15 * noise3(local * vec3(1.0, 14.0, 14.0))) * (1.0 - 0.25 * rings);
+    vec2 h = vec2(local.x * 9.0, atan(local.z, local.y) * 6.0);
+    vec2 c = abs(fract(h + vec2(0.5 * floor(h.y), 0.0)) - 0.5);
+    float grout = smoothstep(0.4, 0.48, max(c.x, c.y));
+    vec3 tiles = vec3(0.07, 0.07, 0.08) * (1.0 + 0.6 * hash13(vec3(floor(h), 2.0))) + vec3(0.12) * grout;
+    float tiled = smoothstep(0.03, -0.03, local.y);
+    return vec4(mix(steel, tiles, tiled), mix(1.6, 0.3, tiled));
+}
+#endif
+
+#ifdef HAS_JUNO
+#define CRAFT_SKY
+const vec3 CRAFT_AMBIENT = vec3(0.04, 0.04, 0.05);
+const vec3 SUN_COLOR = vec3(0.95, 0.93, 0.9);
+const vec4 CRAFT_BOUND = vec4(0.0, 0.0, 0.0, 5.9);
+const vec3 JUPITER_CENTER = vec3(6.0, -70.0, -40.0);
+const float JUPITER_RADIUS = 62.0;
+
+vec3 craftFrame(vec3 p) {
+    p.yz = rotated(p.yz, -0.5);
+    p.xz = rotated(p.xz, 2.0 * PI * u_craft.x / 60.0);
+    return p;
+}
+
+vec2 craftMap(vec3 p) {
+    vec3 q = craftFrame(p);
+    vec2 hit = vec2(sdPrism(q, 6.0, 0.38, 0.85), 2.0);
+    hit = nearer(hit, vec2(sdBox(q - vec3(0.0, 0.5, 0.0), vec3(0.42, 0.13, 0.42)), 5.0));
+    hit = nearer(hit, vec2(sdDish(q - vec3(0.0, 0.66, 0.0), 0.72, 0.18, 0.03), 1.0));
+    hit = nearer(hit, vec2(sdCylinder(q - vec3(0.0, 0.92, 0.0), 0.06, 0.1), 5.0));
+    hit = nearer(hit, vec2(sdCapsule(q, vec3(0.0, -0.4, 0.0), vec3(0.0, -0.62, 0.0), 0.18), 4.0));
+    vec3 face = repeatAround(q, 6.0);
+    hit = nearer(hit, vec2(sdBox(face - vec3(0.85, -0.18, 0.0), vec3(0.02, 0.12, 0.22)), 10.0));
+    float sector = 2.0 * PI / 3.0;
+    float index = floor(mod(atan(q.z, q.x) + sector * 0.5, 2.0 * PI) / sector);
+    vec3 w = repeatAround(q, 3.0);
+    hit = nearer(hit, vec2(sdCapsule(w, vec3(0.7, 0.0, 0.0), vec3(1.0, 0.0, 0.0), 0.05), 5.0));
+    float count = index > 1.5 ? 3.0 : 4.0;
+    float along = w.x - 0.95;
+    float segment = clamp(floor(along / 1.1), 0.0, count - 1.0);
+    hit = nearer(hit, vec2(sdBox(vec3(along - (segment + 0.5) * 1.1, w.y, w.z), vec3(0.52, 0.02, 0.62)), 7.0));
+    if (index > 1.5) {
+        hit = nearer(hit, vec2(sdBox(w - vec3(4.6, 0.0, 0.0), vec3(0.35, 0.1, 0.22)), 5.0));
+        hit = nearer(hit, vec2(sdBox(w - vec3(4.75, 0.14, 0.0), vec3(0.1, 0.06, 0.1)), 4.0));
+    }
+    return hit;
+}
+
+vec3 jupiterAlbedo(vec3 local) {
+    vec2 polar = local.xz;
+    float colat = length(polar);
+    float turbulence = fbm(vec3(polar * 9.0, 2.0), 4.0);
+    vec3 color = mix(vec3(0.2, 0.24, 0.34), vec3(0.58, 0.48, 0.38), turbulence);
+    for (int k = 0; k < 9; k++) {
+        float angle = 2.0 * PI * float(k) / 8.0 + 0.3;
+        vec2 center = k == 0 ? vec2(0.0) : 0.17 * vec2(cos(angle), sin(angle));
+        float size = k == 0 ? 0.065 : 0.05 + 0.012 * sin(float(k) * 2.3);
+        vec2 d = polar - center;
+        float r = length(d) / size;
+        float arms = 0.5 + 0.5 * sin(2.0 * atan(d.y, d.x) + 5.0 * log(r + 0.05) + 3.0 * turbulence);
+        float storm = exp(-r * r * 0.8);
+        color = mix(color, mix(vec3(0.55, 0.5, 0.45), vec3(0.95, 0.9, 0.82), arms), storm);
+    }
+    float latitude = asin(clamp(local.y, -1.0, 1.0));
+    float bands = 0.5 + 0.5 * sin(latitude * 28.0 + 2.5 * fbm(vec3(local.xz * 4.0, 6.0), 3.0));
+    vec3 banded = mix(vec3(0.7, 0.5, 0.33), vec3(0.95, 0.88, 0.74), bands);
+    return mix(color, banded, smoothstep(0.35, 0.6, colat));
+}
+
+vec4 craftSky(vec3 origin, vec3 d, vec3 sun) {
+    float t = sphereEntry(origin, d, 1e4, JUPITER_CENTER, JUPITER_RADIUS);
+    if (t < 0.0) {
+        float miss = length(cross(JUPITER_CENTER - origin, d)) - JUPITER_RADIUS;
+        return vec4(vec3(0.5, 0.6, 0.85) * exp(-max(miss, 0.0) / 0.6) * 0.3, 0.0);
+    }
+    vec3 n = normalize(origin + d * t - JUPITER_CENTER);
+    vec3 local = bodyFrame(n, normalize(vec3(-0.1, 1.0, 0.42)), 2.0 * PI * u_craft.x / 240.0);
+    float diffuse = max(dot(n, sun), 0.0);
+    return vec4(jupiterAlbedo(local) * (SUN_COLOR * 1.4 * diffuse + 0.025), 1.0);
+}
+#endif
+
+#ifdef HAS_GALILEO
+#define CRAFT_SPECIAL
+#define CRAFT_SKY
+#define CRAFT_DUST
+const vec3 CRAFT_AMBIENT = vec3(0.11, 0.075, 0.045);
+const vec3 SUN_COLOR = vec3(1.25, 0.95, 0.62);
+const vec4 CRAFT_BOUND = vec4(0.0, 0.0, 0.0, 3.6);
+const vec3 CANOPY = vec3(0.0, 2.2, 0.0);
+const float FOG = 70.0;
+const float WIND = 0.35;
+
+vec3 craftFrame(vec3 p) {
+    vec3 q = p - CANOPY;
+    q.xy = rotated(q.xy, 0.09 * cycle(13.0, 0.0));
+    q.yz = rotated(q.yz, 0.07 * cycle(17.0, 0.25));
+    q.xz = rotated(q.xz, 2.0 * PI * u_craft.x / 80.0);
+    return q;
+}
+
+vec2 craftMap(vec3 p) {
+    vec3 q = craftFrame(p);
+    vec2 hit = vec2(max(sdDish(vec3(q.x, -q.y, q.z), 1.5, 0.6, 0.02), 0.16 - length(q.xz)), 12.0);
+    hit = nearer(hit, vec2(sdCapsule(repeatAround(q, 12.0), vec3(1.48, -0.6, 0.0), vec3(0.0, -3.0, 0.0), 0.02), 5.0));
+    hit = nearer(hit, vec2(sdCapsule(q, vec3(0.0, -3.0, 0.0), vec3(0.0, -3.55, 0.0), 0.03), 5.0));
+    hit = nearer(hit, vec2(sdCapsule(repeatAround(q, 3.0), vec3(0.0, -3.55, 0.0), vec3(0.4, -3.85, 0.0), 0.018), 5.0));
+    hit = nearer(hit, vec2(sdEllipsoid(q - vec3(0.0, -3.85, 0.0), vec3(0.5, 0.25, 0.5)), 5.0));
+    hit = nearer(hit, vec2(sdCylinder(q - vec3(0.0, -4.07, 0.0), 0.22, 0.5) - 0.02, 2.0));
+    hit = nearer(hit, vec2(sdCylinder(q - vec3(0.0, -4.33, 0.0), 0.04, 0.42), 4.0));
+    hit = nearer(hit, vec2(sdCapsule(q, vec3(0.45, -4.1, 0.0), vec3(0.78, -4.22, 0.0), 0.035), 5.0));
+    hit = nearer(hit, vec2(sdBox(q - vec3(0.82, -4.22, 0.0), vec3(0.06, 0.05, 0.08)), 4.0));
+    return nearer(hit, vec2(sdBox(q - vec3(-0.5, -4.0, 0.0), vec3(0.05, 0.1, 0.12)), 10.0));
+}
+
+vec4 craftSpecial(vec3 p, vec3 local, vec3 n) {
+    float gore = mod(floor(atan(local.z, local.x) / (2.0 * PI) * 12.0), 2.0);
+    return vec4(gore < 0.5 ? vec3(0.95, 0.92, 0.85) : vec3(0.95, 0.42, 0.14), 0.3);
+}
+
+float groundHeight(vec2 q) {
+    vec2 w = q + vec2(u_craft.x * WIND, 0.0);
+    float h = -11.0 + 3.0 * fbm(vec3(w * 0.07, 2.0), 3.0) + 1.2 * fbm(vec3(w * 0.25, 5.0), 2.0);
+    return h + 16.0 * smoothstep(40.0, 160.0, length(q)) * square(fbm(vec3(w * 0.02, 9.0), 3.0));
+}
+
+vec3 groundAlbedo(vec3 p) {
+    vec2 w = p.xz + vec2(u_craft.x * WIND, 0.0);
+    float tone = fbm(vec3(w * 0.09, 3.0), 3.0);
+    float band = 0.5 + 0.5 * sin(w.y * 0.12 + 3.0 * tone);
+    vec3 cloud = mix(vec3(0.55, 0.32, 0.17), vec3(0.85, 0.72, 0.52), smoothstep(0.3, 0.7, 0.6 * band + 0.6 * tone - 0.1));
+    return cloud * (0.22 + 0.15 * smoothstep(-11.0, -7.0, p.y));
+}
+
+vec3 horizonColor(vec3 sun) {
+    return vec3(0.2, 0.13, 0.07);
+}
+
+vec4 craftSky(vec3 origin, vec3 d, vec3 sun) {
+    float up = d.y;
+    vec3 base = mix(vec3(0.23, 0.15, 0.08), vec3(0.11, 0.07, 0.04), smoothstep(-0.1, 0.6, up));
+    float veil = fbm(vec3(d.xz / max(d.y, 0.08) * 1.5 + vec2(u_craft.x * 0.01, 0.0), 4.0), 3.0);
+    base += vec3(0.14, 0.1, 0.06) * smoothstep(0.45, 0.8, veil) * smoothstep(0.05, 0.3, up);
+    return vec4(base + vec3(0.4, 0.3, 0.18) * exp((dot(d, sun) - 1.0) / 0.15), 1.0);
 }
 
 vec3 craftDust(vec3 origin, vec3 dir, float far) {
-    return vec3(0.0);
+    vec3 glow = vec3(0.0);
+    for (int k = 0; k < 3; k++) {
+        float clock = u_craft.x / 7.0 + float(k) * 0.37;
+        float phase = fract(clock) * 7.0;
+        vec3 h = hash33(vec3(floor(clock), float(k), 3.0));
+        vec3 bolt = vec3(-45.0 + 90.0 * h.x, -11.0, -20.0 - 60.0 * h.y);
+        float flash = exp(-phase * 6.0) * (0.6 + 0.4 * sin(phase * 60.0)) + exp(-abs(phase - 0.3) * 30.0);
+        float along = max(dot(bolt - origin, dir), 0.0);
+        float miss = length(origin + dir * along - bolt);
+        glow += vec3(0.8, 0.85, 1.0) * flash * exp(-miss / (5.0 + 0.04 * along)) * (0.3 + 0.5 * h.z);
+    }
+    vec2 grid = vec2(atan(dir.x, -dir.z) * 40.0, dir.y * 30.0 - u_craft.x * 0.8);
+    vec3 h = hash33(vec3(floor(grid), 7.0));
+    vec2 f = fract(grid) - 0.5 - 0.3 * (h.xy - 0.5);
+    return glow + vec3(0.9, 0.75, 0.55) * step(0.88, h.z) * exp(-dot(f, f) * 40.0) * 0.25;
+}
+#endif
+
+#ifdef HAS_VENERA
+#define CRAFT_SPECIAL
+#define CRAFT_SKY
+const vec3 CRAFT_AMBIENT = vec3(0.13, 0.08, 0.03);
+const vec3 SUN_COLOR = vec3(0.95, 0.65, 0.3);
+const vec4 CRAFT_BOUND = vec4(0.3, 0.4, 0.3, 3.2);
+const float FOG = 45.0;
+
+vec3 craftFrame(vec3 p) {
+    p.xz = rotated(p.xz, 0.4);
+    p.xy = rotated(p.xy, 0.06);
+    return p;
+}
+
+vec2 craftMap(vec3 p) {
+    vec3 q = craftFrame(p);
+    vec2 hit = vec2(sdTorus(q - vec3(0.0, -0.82, 0.0), 0.95, 0.13), 5.0);
+    hit = nearer(hit, vec2(sdCapsule(repeatAround(q, 8.0), vec3(0.92, -0.75, 0.0), vec3(0.45, -0.3, 0.0), 0.04), 5.0));
+    hit = nearer(hit, vec2(length(q - vec3(0.0, 0.05, 0.0)) - 0.72, 1.0));
+    float teeth = abs(fract(atan(q.z, q.x) * 24.0 / (2.0 * PI)) - 0.5) * 2.0;
+    float plate = max(abs(q.y - 0.88) - 0.035, length(q.xz) - 1.15 - 0.22 * teeth);
+    hit = nearer(hit, vec2(plate * 0.6, 5.0));
+    hit = nearer(hit, vec2(sdCylinder(q - vec3(0.0, 0.8, 0.0), 0.1, 0.45), 1.0));
+    hit = nearer(hit, vec2(sdCylinder(q - vec3(0.0, 1.35, 0.0), 0.45, 0.24), 12.0));
+    hit = nearer(hit, vec2(length(q - vec3(0.0, 1.85, 0.0)) - 0.16, 5.0));
+    vec3 c = vec3(abs(q.x), q.y, q.z);
+    hit = nearer(hit, vec2(sdBox(c - vec3(0.68, 0.25, 0.0), vec3(0.1, 0.12, 0.14)), 10.0));
+    hit = nearer(hit, vec2(sdCapsule(q, vec3(0.3, -0.7, 0.85), vec3(0.45, -0.95, 1.35), 0.05), 5.0));
+    hit = nearer(hit, vec2(sdBox(q - vec3(0.45, -0.95, 1.38), vec3(0.08, 0.06, 0.08)), 4.0));
+    hit = nearer(hit, vec2(sdCylinder(q - vec3(1.7, -0.95, -0.6), 0.05, 0.16), 1.0));
+    hit = nearer(hit, vec2(sdCapsule(q, vec3(-0.95, -0.82, 0.25), vec3(-1.55, -0.88, 0.3), 0.025), 5.0));
+    return nearer(hit, vec2(sdBox(q - vec3(-1.3, -0.85, 0.3), vec3(0.28, 0.015, 0.06)), 12.0));
+}
+
+vec4 craftSpecial(vec3 p, vec3 local, vec3 n) {
+    if (local.y > 0.85) {
+        float helix = step(0.5, fract(atan(local.z, local.x) / (2.0 * PI) + local.y * 4.0));
+        return vec4(mix(vec3(0.75), vec3(0.15), helix), 0.6);
+    }
+    float bar = mod(floor((local.x + 1.58) * 7.0), 4.0);
+    vec3 chart = bar < 0.5 ? vec3(0.8, 0.15, 0.1) : bar < 1.5 ? vec3(0.15, 0.6, 0.2) : bar < 2.5 ? vec3(0.15, 0.25, 0.75) : vec3(0.9);
+    return vec4(chart, 0.3);
+}
+
+vec2 slabs(vec2 q) {
+    vec2 cell = floor(q);
+    vec2 f = fract(q);
+    float first = 9.0;
+    float second = 9.0;
+    float id = 0.0;
+    for (int j = -1; j <= 1; j++)
+        for (int i = -1; i <= 1; i++) {
+            vec2 o = vec2(float(i), float(j));
+            vec2 c = o + 0.1 + 0.8 * hash33(vec3(cell + o, 2.0)).xy - f;
+            float d = dot(c, c);
+            if (d < first) {
+                second = first;
+                first = d;
+                id = hash13(vec3(cell + o, 6.0));
+            } else if (d < second) {
+                second = d;
+            }
+        }
+    return vec2(sqrt(second) - sqrt(first), id);
+}
+
+float groundHeight(vec2 q) {
+    float r = length(q);
+    vec2 s = slabs(q * 1.6);
+    float detail = smoothstep(1.3, 2.4, r) * (1.0 - smoothstep(15.0, 40.0, r));
+    float h = -1.0 + 0.04 * fbm(vec3(q * 0.4, 1.0), 2.0) + detail * (0.09 * s.y - 0.05 * (1.0 - smoothstep(0.0, 0.1, s.x)));
+    return h + 5.0 * smoothstep(40.0, 150.0, r) * fbm(vec3(q * 0.03, 4.0), 3.0);
+}
+
+vec3 groundAlbedo(vec3 p) {
+    vec2 s = slabs(p.xz * 1.6);
+    vec3 rock = vec3(0.17, 0.15, 0.12) * (0.75 + 0.35 * s.y) * (0.85 + 0.3 * noise3(vec3(p.xz * 6.0, 2.0)));
+    return mix(vec3(0.26, 0.2, 0.13), rock, smoothstep(0.03, 0.1, s.x));
+}
+
+vec3 horizonColor(vec3 sun) {
+    return vec3(0.42, 0.28, 0.12);
+}
+
+vec4 craftSky(vec3 origin, vec3 d, vec3 sun) {
+    float up = max(d.y, 0.0);
+    vec3 base = mix(vec3(0.44, 0.3, 0.12), vec3(0.28, 0.17, 0.06), smoothstep(0.0, 0.7, up));
+    float clouds = fbm(vec3(d.xz / max(d.y, 0.1) * 0.8 + vec2(u_craft.x * 0.004, 0.0), 6.0), 3.0);
+    return vec4(base * (0.85 + 0.3 * clouds), 1.0);
+}
+#endif
+
+#ifdef HAS_TITAN
+#define CRAFT_SPECIAL
+#define CRAFT_SKY
+const vec3 CRAFT_AMBIENT = vec3(0.1, 0.06, 0.025);
+const vec3 SUN_COLOR = vec3(0.6, 0.4, 0.18);
+const vec4 CRAFT_BOUND = vec4(1.2, -0.6, -0.3, 3.4);
+const vec3 CHUTE = vec3(2.5, -0.98, -0.9);
+const float FOG = 35.0;
+
+vec3 craftFrame(vec3 p) {
+    p.xz = rotated(p.xz, -0.3);
+    p.y += 0.62;
+    p.xy = rotated(p.xy, 0.12);
+    return p;
+}
+
+vec2 craftMap(vec3 p) {
+    vec3 q = craftFrame(p);
+    vec2 hit = vec2(sdCylinder(q - vec3(0.0, -0.05, 0.0), 0.12, 0.85) - 0.04, 2.0);
+    hit = nearer(hit, vec2(sdCylinder(q - vec3(0.0, 0.14, 0.0), 0.06, 0.7) - 0.03, 1.0));
+    hit = nearer(hit, vec2(sdBox(repeatAround(q, 12.0) - vec3(0.92, -0.05, 0.0), vec3(0.06, 0.1, 0.012)), 5.0));
+    hit = nearer(hit, vec2(sdBox(q - vec3(0.3, 0.26, 0.2), vec3(0.14, 0.06, 0.1)), 5.0));
+    hit = nearer(hit, vec2(sdBox(q - vec3(-0.25, 0.26, -0.3), vec3(0.1, 0.07, 0.12)), 4.0));
+    hit = nearer(hit, vec2(sdCapsule(q, vec3(0.7, 0.0, -0.3), vec3(1.0, 0.06, -0.45), 0.03), 5.0));
+    hit = nearer(hit, vec2(sdBox(q - vec3(1.02, 0.08, -0.46), vec3(0.06)), 10.0));
+    hit = nearer(hit, vec2(sdCapsule(q, vec3(-0.4, 0.2, 0.3), vec3(-0.45, 0.5, 0.35), 0.02), 5.0));
+    vec3 c = p - CHUTE;
+    float chute = sdEllipsoid(c, vec3(1.4, 0.1, 0.85)) - 0.03 * sin(p.x * 9.0) * sin(p.z * 7.0);
+    hit = nearer(hit, vec2(chute * 0.8, 12.0));
+    float lines = min(sdCapsule(p, CHUTE + vec3(-1.25, 0.03, 0.2), vec3(0.75, -0.72, -0.1), 0.012),
+        sdCapsule(p, CHUTE + vec3(-1.15, 0.03, -0.45), vec3(0.65, -0.72, -0.45), 0.012));
+    return nearer(hit, vec2(lines, 5.0));
+}
+
+vec4 craftSpecial(vec3 p, vec3 local, vec3 n) {
+    vec3 c = p - CHUTE;
+    float gore = mod(floor(atan(c.z, c.x) * 6.0 / PI), 2.0);
+    return vec4(gore < 0.5 ? vec3(0.9, 0.85, 0.75) : vec3(0.9, 0.45, 0.15), 0.3);
+}
+
+float cobble(vec2 q, float size, float seed) {
+    vec2 cell = floor(q / size);
+    vec3 h = hash33(vec3(cell, seed));
+    if (h.z > 0.6)
+        return 0.0;
+    float radius = size * (0.14 + 0.2 * h.z);
+    float d = length(q - (cell + 0.35 + 0.3 * h.xy) * size);
+    return sqrt(max(radius * radius - d * d, 0.0)) * 0.45;
+}
+
+float pebbles(vec2 q) {
+    float clear = smoothstep(1.1, 2.0, length(q)) * smoothstep(0.6, 1.2, length((q - CHUTE.xz) / vec2(1.5, 1.0)));
+    return (cobble(q, 0.55, 1.0) + cobble(q + 0.27, 0.9, 2.0)) * clear * (1.0 - smoothstep(12.0, 25.0, length(q)));
+}
+
+float groundHeight(vec2 q) {
+    float h = -1.0 + 0.08 * fbm(vec3(q * 0.5, 3.0), 2.0) + pebbles(q);
+    return h + 4.0 * smoothstep(50.0, 160.0, length(q)) * fbm(vec3(q * 0.025, 6.0), 3.0);
+}
+
+vec3 groundAlbedo(vec3 p) {
+    float stone = smoothstep(0.0, 0.02, pebbles(p.xz));
+    vec3 soil = mix(vec3(0.15, 0.09, 0.05), vec3(0.21, 0.13, 0.07), fbm(vec3(p.xz * 2.0, 4.0), 2.0));
+    vec3 ice = vec3(0.48, 0.42, 0.35) * (0.8 + 0.3 * hash13(vec3(floor(p.xz / 0.55), 1.0)));
+    return mix(soil, ice, stone);
+}
+
+vec3 horizonColor(vec3 sun) {
+    return vec3(0.29, 0.17, 0.07);
+}
+
+vec4 craftSky(vec3 origin, vec3 d, vec3 sun) {
+    float up = max(d.y, 0.0);
+    vec3 base = mix(vec3(0.34, 0.2, 0.08), vec3(0.18, 0.1, 0.04), smoothstep(0.0, 0.8, up));
+    base += vec3(0.25, 0.15, 0.05) * exp((dot(d, sun) - 1.0) / 0.25);
+    vec3 saturn = normalize(vec3(-0.45, 0.42, -0.79));
+    vec3 east = normalize(cross(saturn, vec3(0.0, 1.0, 0.0)));
+    vec3 north = cross(east, saturn);
+    vec2 s = vec2(dot(d, east), dot(d, north)) / max(dot(d, saturn), 1e-3);
+    float disc = 1.0 - smoothstep(0.068, 0.075, length(s));
+    s = rotated(s, 0.25);
+    float ring = length(s / vec2(1.0, 0.24));
+    float band = smoothstep(0.1, 0.11, ring) * (1.0 - smoothstep(0.16, 0.17, ring)) * step(0.0, max(s.y, 0.07 - length(s)));
+    return vec4(base * (1.0 + 0.3 * max(disc, band)), 1.0);
+}
+#endif
+
+#ifdef HAS_COMET
+#define CRAFT_SPECIAL
+#define CRAFT_DUST
+const vec3 CRAFT_AMBIENT = vec3(0.03, 0.03, 0.035);
+const vec3 SUN_COLOR = vec3(1.1, 1.08, 1.04);
+const vec4 CRAFT_BOUND = vec4(-1.0, -4.0, -10.0, 15.0);
+const vec3 COMET_BODY = vec3(-3.5, -8.0, -14.0);
+const vec3 COMET_HEAD = vec3(4.5, -3.0, -13.0);
+const vec3 COMET_BODY_SIZE = vec3(6.5, 4.5, 5.0);
+const vec3 COMET_HEAD_SIZE = vec3(3.6, 3.2, 3.4);
+const vec3 PHILAE = vec3(4.5, 0.2, -13.0);
+
+vec3 craftFrame(vec3 p) {
+    p.xz = rotated(p.xz, 0.5 + 0.2 * cycle(200.0, 0.0));
+    p.yz = rotated(p.yz, 0.25);
+    return p;
+}
+
+float blend(float a, float b, float k) {
+    float h = clamp(0.5 + 0.5 * (b - a) / k, 0.0, 1.0);
+    return mix(b, a, h) - k * h * (1.0 - h);
+}
+
+float cometShape(vec3 p) {
+    float lobes = blend(sdEllipsoid(p - COMET_BODY, COMET_BODY_SIZE), sdEllipsoid(p - COMET_HEAD, COMET_HEAD_SIZE), 2.5);
+    if (lobes > 1.5)
+        return lobes;
+    float rough = 0.9 * (fbm(p * 0.35, 3.0) - 0.5) + 0.15 * (noise3(p * 2.0) - 0.5);
+    return lobes + rough * smoothstep(0.8, 1.8, length(p - PHILAE));
+}
+
+vec2 craftMap(vec3 p) {
+    vec3 q = craftFrame(p);
+    vec2 hit = vec2(sdBox(q, vec3(0.5, 0.55, 0.45)) - 0.02, 2.0);
+    vec3 w = vec3(abs(q.x), q.y, q.z);
+    hit = nearer(hit, vec2(sdCapsule(w, vec3(0.5, 0.0, 0.0), vec3(0.85, 0.0, 0.0), 0.05), 5.0));
+    vec3 wing = w - vec3(0.85, 0.0, 0.0);
+    wing.yz = rotated(wing.yz, 0.3);
+    wing.x -= (clamp(floor(wing.x / 0.62), 0.0, 4.0) + 0.5) * 0.62;
+    hit = nearer(hit, vec2(sdBox(wing, vec3(0.29, 0.015, 0.5)), 7.0));
+    hit = nearer(hit, vec2(sdDish((q - vec3(0.0, 0.1, 0.48)).xzy, 0.55, 0.14, 0.02), 1.0));
+    hit = nearer(hit, vec2(sdCapsule(q, vec3(0.0, 0.1, 0.5), vec3(0.0, 0.1, 0.68), 0.04), 5.0));
+    hit = nearer(hit, vec2(sdBox(q - vec3(0.0, -0.62, 0.0), vec3(0.3, 0.08, 0.25)), 5.0));
+    hit = nearer(hit, vec2(sdBox(q - vec3(0.3, 0.62, -0.2), vec3(0.08)), 4.0));
+    hit = nearer(hit, vec2(sdBox(q - vec3(0.0, 0.0, -0.5), vec3(0.32, 0.32, 0.04)), 4.0));
+    vec3 lander = p - PHILAE - vec3(0.0, 0.55, 0.0);
+    hit = nearer(hit, vec2(sdBox(lander, vec3(0.4, 0.26, 0.34)), 7.0));
+    hit = nearer(hit, vec2(sdBox(lander - vec3(0.0, 0.27, 0.0), vec3(0.4, 0.02, 0.34)), 4.0));
+    hit = nearer(hit, vec2(sdCapsule(repeatAround(lander, 3.0), vec3(0.3, -0.2, 0.0), vec3(0.75, -0.62, 0.0), 0.035), 5.0));
+    return nearer(hit, vec2(cometShape(p), 12.0));
+}
+
+vec4 craftSpecial(vec3 p, vec3 local, vec3 n) {
+    float tone = 0.2 + 0.14 * noise3(p * 0.8) + 0.1 * noise3(p * 4.0);
+    return vec4(vec3(tone) * vec3(1.0, 0.97, 0.93), 0.15);
+}
+
+vec3 craftDust(vec3 origin, vec3 dir, float far) {
+    vec3 glow = vec3(0.0);
+    for (int k = 0; k < 4; k++) {
+        vec3 h = hash33(vec3(float(k), 2.0, 9.0));
+        vec3 axis = normalize(vec3(h.x - 0.5, 0.6 + 0.4 * h.y, h.z - 0.6));
+        vec3 vent = k < 2 ? COMET_HEAD + axis * COMET_HEAD_SIZE : COMET_BODY + axis * COMET_BODY_SIZE;
+        vec3 w = origin - vent;
+        float b = dot(dir, axis);
+        float denominator = max(1.0 - b * b, 1e-3);
+        float s = clamp((dot(axis, w) - b * dot(dir, w)) / denominator, 0.0, 30.0);
+        float t = max(dot(vent + axis * s - origin, dir), 0.0);
+        if (t > far)
+            continue;
+        float miss = length(origin + dir * t - vent - axis * s);
+        float width = 0.25 + 0.22 * s;
+        float pulse = 0.6 + 0.4 * sin(2.0 * PI * (u_craft.x / 9.0 + h.x));
+        glow += vec3(0.85, 0.88, 0.95) * exp(-square(miss / width)) * exp(-s / 9.0) * pulse * 0.35;
+    }
+    vec2 grid = vec2(atan(dir.x, -dir.z) * 50.0 + u_craft.x * 0.15, dir.y * 50.0 + u_craft.x * 0.3);
+    vec3 h = hash33(vec3(floor(grid), 4.0));
+    vec2 f = fract(grid) - 0.5 - 0.3 * (h.xy - 0.5);
+    return glow + vec3(0.8) * step(0.93, h.z) * exp(-dot(f, f) * 50.0) * 0.2;
+}
+#endif
+
+#ifdef HAS_PLUTO
+#define CRAFT_SKY
+const vec3 CRAFT_AMBIENT = vec3(0.03, 0.03, 0.035);
+const vec3 SUN_COLOR = vec3(0.9, 0.88, 0.85);
+const vec4 CRAFT_BOUND = vec4(-0.3, 0.2, 0.0, 3.4);
+const vec3 PLUTO_CENTER = vec3(-36.0, -14.0, -75.0);
+const float PLUTO_RADIUS = 24.0;
+const vec3 CHARON_CENTER = vec3(30.0, 12.0, -120.0);
+const float CHARON_RADIUS = 10.0;
+
+vec3 craftFrame(vec3 p) {
+    p.xz = rotated(p.xz, 0.6 + 0.3 * cycle(160.0, 0.0));
+    p.yz = rotated(p.yz, -0.35);
+    return p;
+}
+
+vec2 craftMap(vec3 p) {
+    vec3 q = craftFrame(p);
+    vec2 hit = vec2(sdPrism(q, 3.0, 0.35, 0.75), 2.0);
+    hit = nearer(hit, vec2(sdDish(q - vec3(0.0, 0.38, 0.0), 1.05, 0.25, 0.03), 1.0));
+    float struts = sdCapsule(repeatAround(q, 3.0), vec3(0.9, 0.6, 0.0), vec3(0.0, 1.2, 0.0), 0.025);
+    hit = nearer(hit, vec2(struts, 4.0));
+    hit = nearer(hit, vec2(sdCylinder(q - vec3(0.0, 1.22, 0.0), 0.04, 0.16), 1.0));
+    hit = nearer(hit, vec2(sdCapsule(q, vec3(-1.3, -0.05, 0.0), vec3(-2.3, -0.15, 0.0), 0.17), 4.0));
+    vec3 fin = repeatAround(vec3(q.y + 0.1, q.x + 1.85, q.z), 6.0);
+    hit = nearer(hit, vec2(sdBox(fin - vec3(0.22, 0.0, 0.0), vec3(0.08, 0.42, 0.01)), 4.0));
+    vec3 outward = vec3(-0.5, 0.0, 0.866);
+    vec3 lorri = vec3(-0.375, -0.1, 0.65);
+    hit = nearer(hit, vec2(sdCapsule(q, lorri + outward * 0.05, lorri + outward * 0.5, 0.12), 1.0));
+    hit = nearer(hit, vec2(sdBox(q - vec3(0.82, -0.1, 0.25), vec3(0.1, 0.1, 0.15)), 5.0));
+    return nearer(hit, vec2(sdCylinder(q - vec3(0.4, -0.45, -0.3), 0.08, 0.08), 5.0));
+}
+
+vec3 plutoAlbedo(vec3 n) {
+    vec3 front = normalize(vec3(0.45, 0.05, 1.0));
+    vec3 east = normalize(cross(vec3(0.0, 1.0, 0.0), front));
+    vec3 north = cross(front, east);
+    float latitude = asin(clamp(dot(n, north), -1.0, 1.0));
+    float longitude = atan(dot(n, east), dot(n, front)) + 0.15 * cycle(240.0, 0.0);
+    vec2 h = vec2(longitude - 0.1, latitude - 0.3) / 0.34;
+    float x = h.x;
+    float y = h.y + 0.3;
+    float shape = x * x + y * y - 1.0;
+    float heart = 1.0 - smoothstep(-0.1, 0.1, shape * shape * shape - x * x * y * y * y);
+    float tone = fbm(n * 6.0, 4.0);
+    vec3 color = mix(vec3(0.55, 0.38, 0.26), vec3(0.82, 0.7, 0.56), tone);
+    float whale = exp(-square(latitude / 0.28)) * (1.0 - smoothstep(-0.9, -0.6, longitude)) * smoothstep(-2.8, -2.4, longitude);
+    color = mix(color, vec3(0.25, 0.12, 0.08) * (0.8 + 0.4 * tone), whale);
+    vec2 cells = abs(fract(h * 3.0 + 0.2 * noise3(n * 20.0)) - 0.5);
+    float plains = 1.0 - 0.08 * smoothstep(0.44, 0.5, max(cells.x, cells.y)) * step(x, 0.0);
+    return mix(color, vec3(0.86, 0.82, 0.76) * plains, heart);
+}
+
+vec4 craftSky(vec3 origin, vec3 d, vec3 sun) {
+    float t = sphereEntry(origin, d, 1e4, PLUTO_CENTER, PLUTO_RADIUS);
+    if (t >= 0.0) {
+        vec3 n = normalize(origin + d * t - PLUTO_CENTER);
+        return vec4(plutoAlbedo(n) * (SUN_COLOR * 1.3 * max(dot(n, sun), 0.0) + 0.02), 1.0);
+    }
+    t = sphereEntry(origin, d, 1e4, CHARON_CENTER, CHARON_RADIUS);
+    if (t >= 0.0) {
+        vec3 n = normalize(origin + d * t - CHARON_CENTER);
+        vec3 grey = vec3(0.48, 0.47, 0.45) * (0.75 + 0.4 * fbm(n * 8.0, 3.0));
+        vec3 albedo = mix(grey, vec3(0.38, 0.2, 0.13), smoothstep(0.7, 0.85, n.y));
+        return vec4(albedo * (SUN_COLOR * 1.3 * max(dot(n, sun), 0.0) + 0.02), 1.0);
+    }
+    float miss = length(cross(PLUTO_CENTER - origin, d)) - PLUTO_RADIUS;
+    return vec4(vec3(0.35, 0.55, 1.0) * exp(-max(miss, 0.0) / 0.5) * 0.45, 0.0);
+}
+#endif
+
+#ifdef HAS_PARKER
+#define CRAFT_SPECIAL
+#define CRAFT_SKY
+const vec3 CRAFT_AMBIENT = vec3(0.16, 0.11, 0.07);
+const vec3 SUN_COLOR = vec3(1.35, 1.15, 0.9);
+const vec4 CRAFT_BOUND = vec4(0.0, 0.0, 0.0, 3.6);
+const float SUN_DISTANCE = 80.0;
+const float SUN_RADIUS = 46.0;
+
+vec3 craftFrame(vec3 p) {
+    vec3 q = orientTo(p, lightFrom(vec3(0.0)));
+    q.xy = rotated(q.xy, 0.3 + 0.15 * cycle(150.0, 0.0));
+    return q;
+}
+
+vec2 craftMap(vec3 p) {
+    vec3 q = craftFrame(p);
+    vec3 axial = q.xzy;
+    vec2 hit = vec2(sdCylinder(axial - vec3(0.0, 1.0, 0.0), 0.08, 1.3) - 0.03, 12.0);
+    hit = nearer(hit, vec2(sdCapsule(repeatAround(axial, 6.0), vec3(0.5, 0.9, 0.0), vec3(0.42, 0.25, 0.0), 0.035), 5.0));
+    hit = nearer(hit, vec2(sdPrism(axial - vec3(0.0, -0.25, 0.0), 6.0, 0.55, 0.45), 2.0));
+    hit = nearer(hit, vec2(sdPrism(axial - vec3(0.0, -0.95, 0.0), 6.0, 0.15, 0.32), 4.0));
+    hit = nearer(hit, vec2(sdBox(repeatAround(axial, 4.0) - vec3(0.6, 0.3, 0.0), vec3(0.02, 0.35, 0.28)), 4.0));
+    vec3 w = vec3(abs(q.x), q.y, q.z);
+    hit = nearer(hit, vec2(sdCapsule(w, vec3(0.4, 0.0, 0.2), vec3(0.95, 0.0, 0.35), 0.03), 5.0));
+    vec3 wing = w - vec3(1.15, 0.0, 0.3);
+    wing.xz = rotated(wing.xz, 0.9);
+    hit = nearer(hit, vec2(sdBox(wing, vec3(0.32, 0.015, 0.22)), 7.0));
+    vec3 dish = q - vec3(0.0, 0.62, -0.75);
+    hit = nearer(hit, vec2(sdDish(vec3(dish.x, -dish.z, dish.y), 0.28, 0.07, 0.015), 1.0));
+    hit = nearer(hit, vec2(sdCapsule(q, vec3(0.0, -0.45, 0.6), vec3(0.0, -1.45, 1.25), 0.05), 5.0));
+    hit = nearer(hit, vec2(sdCapsule(q, vec3(0.0, 0.0, -1.1), vec3(0.0, 0.0, -3.0), 0.025), 5.0));
+    return nearer(hit, vec2(sdBox(q - vec3(0.0, 0.0, -2.2), vec3(0.07)), 5.0));
+}
+
+vec4 craftSpecial(vec3 p, vec3 local, vec3 n) {
+    return vec4(mix(vec3(0.2, 0.19, 0.18), vec3(1.0, 0.97, 0.9), smoothstep(1.0, 1.08, local.z)), 0.4);
+}
+
+vec4 craftSky(vec3 origin, vec3 d, vec3 sun) {
+    vec3 offset = sun * SUN_DISTANCE - origin;
+    float along = dot(offset, d);
+    if (along < 0.0)
+        return vec4(0.0);
+    float miss = length(offset - d * along);
+    float r = miss / SUN_RADIUS;
+    vec3 axis = normalize(vec3(0.1, 1.0, 0.2));
+    if (r < 1.0) {
+        vec3 n = normalize(origin + d * (along - sqrt(SUN_RADIUS * SUN_RADIUS - miss * miss)) - sun * SUN_DISTANCE);
+        vec3 local = bodyFrame(n, axis, 2.0 * PI * u_craft.x / 240.0);
+        float mu = sqrt(1.0 - r * r);
+        float granules = 0.5 * noise3(local * 40.0 + u_craft.x * 0.05) + fbm(local * 8.0, 3.0);
+        float belt = smoothstep(0.05, 0.2, abs(local.y)) * (1.0 - smoothstep(0.45, 0.6, abs(local.y)));
+        float spots = smoothstep(0.66, 0.72, fbm(local * 5.0 + 3.0, 3.0)) * belt;
+        vec3 color = mix(vec3(1.0, 0.5, 0.18), vec3(1.0, 0.88, 0.6), mu) * (1.0 + 0.6 * granules) * (0.35 + 0.65 * pow(mu, 0.6));
+        return vec4(color * 1.3 * (1.0 - 0.85 * spots), 1.0);
+    }
+    vec3 toward = normalize(offset);
+    vec3 e1 = normalize(cross(toward, axis));
+    vec3 e2 = cross(e1, toward);
+    vec2 s = vec2(dot(d, e1), dot(d, e2));
+    vec2 around = normalize(s);
+    float streamers = fbm(vec3(around * 2.5, r * 0.8 - u_craft.x * 0.01), 3.0);
+    vec3 glow = vec3(1.0, 0.8, 0.55) * (exp(-(r - 1.0) * 6.0) * 0.8 + exp(-(r - 1.0) * 2.0) * 0.18 * streamers);
+    vec2 disc = around * r;
+    for (int k = 0; k < 2; k++) {
+        float angle = 2.0 * PI * (0.62 + 0.21 * float(k)) + 0.1 * cycle(240.0, float(k));
+        vec2 foot = vec2(cos(angle), sin(angle));
+        float arch = abs(length(disc - foot) - 0.06 - 0.01 * float(k)) / 0.008;
+        float flicker = 0.7 + 0.3 * noise3(vec3(disc * 40.0, u_craft.x * 0.3));
+        glow += vec3(1.0, 0.35, 0.15) * exp(-arch * arch) * step(1.0, r) * flicker * 1.5;
+    }
+    return vec4(glow, 0.0);
 }
 #endif
 
@@ -1781,8 +2452,14 @@ vec3 craftSurface(float material, vec3 p, vec3 n, vec3 dir, vec3 sun, float shad
     } else if (material < 10.5) {
         albedo = vec3(0.03);
         shine = 1.0;
-    } else {
+    } else if (material < 11.5) {
         albedo = vec3(0.5, 0.5, 0.52) * (0.7 + 0.3 * step(0.5, fract(atan(local.y + 0.74, local.x) * 3.0)));
+    } else {
+#ifdef CRAFT_SPECIAL
+        vec4 special = craftSpecial(p, local, n);
+        albedo = special.rgb;
+        shine = special.a;
+#endif
     }
     float rim = pow(1.0 - clamp(dot(n, -dir), 0.0, 1.0), 3.0);
     return SUN_COLOR * (albedo * 1.3 * diffuse + spec * shine) + albedo * CRAFT_AMBIENT * (1.0 + 2.0 * rim) * 3.0 + glow;
@@ -1814,7 +2491,7 @@ vec3 groundColor(vec3 p, vec3 dir, float t, vec3 sun) {
     float shadow = craftShadow(p + n * 0.03, sun);
     vec3 albedo = groundAlbedo(p);
     vec3 color = albedo * (SUN_COLOR * 1.3 * max(dot(n, sun), 0.0) * shadow + CRAFT_AMBIENT * (0.6 + 0.4 * n.y) * 4.0);
-    return mix(color, horizonColor(sun), 1.0 - exp(-t / 110.0));
+    return mix(color, horizonColor(sun), 1.0 - exp(-t / FOG));
 }
 #endif
 
@@ -1842,21 +2519,28 @@ vec4 craftScene(vec3 origin, vec3 dir, float pixel) {
     }
 #ifdef HAS_GROUND
     float ground = groundMarch(origin, dir, hit < 0.0 ? GROUND_FAR : hit);
-    if (ground > 0.0 && (hit < 0.0 || ground < hit))
-        return vec4(groundColor(origin + dir * ground, dir, ground, sun) + craftDust(origin, dir, ground), 1.0);
+    if (ground > 0.0 && (hit < 0.0 || ground < hit)) {
+        vec3 surface = groundColor(origin + dir * ground, dir, ground, sun);
+#ifdef CRAFT_DUST
+        surface += craftDust(origin, dir, ground);
+#endif
+        return vec4(surface, 1.0);
+    }
 #endif
     if (hit < 0.0) {
-#ifdef HAS_GROUND
-        vec4 sky = craftSky(dir, sun);
-        return vec4(sky.rgb + craftDust(origin, dir, 1e3), sky.a);
-#else
-        return vec4(0.0);
+        vec4 sky = vec4(0.0);
+#ifdef CRAFT_SKY
+        sky = craftSky(origin, dir, sun);
 #endif
+#ifdef CRAFT_DUST
+        sky.rgb += craftDust(origin, dir, 1e3);
+#endif
+        return sky;
     }
     vec3 p = origin + dir * hit;
     vec3 n = craftNormal(p, hit);
     vec3 color = craftSurface(material, p, n, dir, sun, craftShadow(p + n * 0.03, sun));
-#ifdef HAS_GROUND
+#ifdef CRAFT_DUST
     color += craftDust(origin, dir, hit);
 #endif
     return vec4(color, 1.0);

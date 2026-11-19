@@ -69,6 +69,15 @@ const SCENARIO_FEATURES = {
     cassini: ['PLANET', 'CRAFT', 'CASSINI'],
     perseverance: ['CRAFT', 'GROUND', 'MARS'],
     apollo: ['EARTH', 'CRAFT', 'GROUND', 'APOLLO'],
+    hubble: ['EARTH', 'CRAFT', 'HUBBLE'],
+    starship: ['EARTH', 'CRAFT', 'STARSHIP'],
+    'new-horizons': ['CRAFT', 'PLUTO'],
+    parker: ['CRAFT', 'PARKER'],
+    juno: ['CRAFT', 'JUNO'],
+    galileo: ['CRAFT', 'GROUND', 'GALILEO'],
+    huygens: ['CRAFT', 'GROUND', 'TITAN'],
+    rosetta: ['CRAFT', 'COMET'],
+    venera: ['CRAFT', 'GROUND', 'VENERA'],
     magnetar: ['NEUTRON', 'MAGNETAR', 'SHEET'],
     supernova: ['STAR', 'NEUTRON', 'EVENTS'],
     merger: ['BLACK_HOLE', 'DISK', 'SHEET'],
@@ -99,6 +108,9 @@ const SCENARIO_BACKDROPS = {
     birth: ['NEBULA', 'YOUNG'],
     perseverance: [],
     apollo: [],
+    galileo: [],
+    huygens: [],
+    venera: [],
 };
 export const PAIR_STAND_INS = {'quasar': 'black-hole', 'dyson': 'star', 'crab': 'neutron-star'};
 const CRAFTS = {
@@ -109,6 +121,17 @@ const CRAFTS = {
     perseverance: {distance: 7.5, lift: 0.05, light: [-1, 0.5, 0.45]},
     apollo: {distance: 21, lift: -0.02, light: [-0.8, 0.3, 0.55],
         body: {kind: 'earth', position: [-24, 12, -84], scale: 1.8}},
+    hubble: {distance: 14, lift: 0.2, light: [-0.6, 0.55, 0.6],
+        body: {kind: 'earth', position: [0, -75, -30], scale: 22}},
+    starship: {distance: 13, lift: 0.2, light: [-0.5, 0.6, 0.6],
+        body: {kind: 'earth', position: [0, -75, -30], scale: 22}},
+    'new-horizons': {distance: 8.5, lift: 0.1, light: [0.3, 0.3, 1]},
+    parker: {distance: 9, lift: 0.1, light: [0.75, -0.15, -0.65]},
+    juno: {distance: 15, lift: 0.35, light: [-0.7, 0.45, 0.55]},
+    galileo: {distance: 9, lift: 0.02, light: [0.8, 0.55, 0.6]},
+    huygens: {distance: 6, lift: 0.35, light: [-0.5, 0.7, 0.3]},
+    rosetta: {distance: 17, lift: 0.15, light: [-0.6, 0.4, 0.7]},
+    venera: {distance: 6.5, lift: 0.2, light: [0.3, 1, 0.4]},
 };
 const CRAFT_PERIOD = 240;
 
@@ -465,6 +488,15 @@ export class Scene {
         case 'cassini':
         case 'perseverance':
         case 'apollo':
+        case 'hubble':
+        case 'starship':
+        case 'new-horizons':
+        case 'parker':
+        case 'juno':
+        case 'galileo':
+        case 'huygens':
+        case 'rosetta':
+        case 'venera':
             this._craft(state);
             break;
         case 'spiral':

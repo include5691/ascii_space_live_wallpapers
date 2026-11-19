@@ -14,10 +14,19 @@
     <key name="craft" type="s">
       <choices>
         <choice value="webb"/>
+        <choice value="hubble"/>
+        <choice value="starship"/>
         <choice value="voyager"/>
+        <choice value="new-horizons"/>
+        <choice value="parker"/>
+        <choice value="juno"/>
+        <choice value="galileo"/>
         <choice value="cassini"/>
+        <choice value="huygens"/>
+        <choice value="rosetta"/>
         <choice value="perseverance"/>
         <choice value="apollo"/>
+        <choice value="venera"/>
       </choices>
       <default>'webb'</default>
       <summary>The spacecraft scene</summary>

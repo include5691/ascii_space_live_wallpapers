@@ -1,7 +1,7 @@
 {
   "uuid": "space-wallpaper@include5691.github.io",
   "name": "Space Wallpaper",
-  "description": "A live ASCII-art space wallpaper rendered on the GPU. Pick a black hole, neutron star, star, wormhole, ringed planet, Earth, quasar or the Crab Nebula, alone or as an orbiting pair with cosmic events. Or pick a deep sky scene: a spiral galaxy, a galaxy collision, a star cluster, the Pillars of Creation, the Big Bang, the birth of the solar system or the solar system. Or pick a spacecraft: the James Webb telescope, Voyager, Cassini at Saturn, Perseverance on Mars or Apollo on the Moon. The camera follows your cursor, and the wallpaper also covers the lock screen.",
+  "description": "A live ASCII-art space wallpaper rendered on the GPU. Pick a black hole, neutron star, star, wormhole, ringed planet, Earth, quasar or the Crab Nebula, alone or as an orbiting pair with cosmic events. Or pick a deep sky scene: a spiral galaxy, a galaxy collision, a star cluster, the Pillars of Creation, the Big Bang, the birth of the solar system or the solar system. Or pick a spacecraft: the James Webb and Hubble telescopes, Starship, Voyager, New Horizons, the Parker Solar Probe, Juno, the Galileo probe, Cassini, Huygens on Titan, Rosetta and Philae, Perseverance on Mars, Apollo on the Moon or Venera 13 on Venus. The camera follows your cursor, and the wallpaper also covers the lock screen.",
   "shell-version": ["50"],
   "session-modes": ["user", "unlock-dialog"],
   "url": "https://github.com/include5691/ascii_space_live_wallpapers",

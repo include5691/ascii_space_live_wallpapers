@@ -18,10 +18,19 @@ export const SINGLE_OBJECTS = [...OBJECTS, ['quasar', 'Quasar'], ['dyson', 'Dyso
 
 export const SPACECRAFT = [
     ['webb', 'James Webb telescope'],
+    ['hubble', 'Hubble telescope'],
+    ['starship', 'Starship in Earth orbit'],
     ['voyager', 'Voyager'],
+    ['new-horizons', 'New Horizons at Pluto'],
+    ['parker', 'Parker Solar Probe'],
+    ['juno', 'Juno at Jupiter'],
+    ['galileo', 'Galileo probe in Jupiter'],
     ['cassini', 'Cassini at Saturn'],
+    ['huygens', 'Huygens on Titan'],
+    ['rosetta', 'Rosetta and Philae at a comet'],
     ['perseverance', 'Perseverance on Mars'],
     ['apollo', 'Apollo on the Moon'],
+    ['venera', 'Venera 13 on Venus'],
 ];
 
 export const GALAXIES = [

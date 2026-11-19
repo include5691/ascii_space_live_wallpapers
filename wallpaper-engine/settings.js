@@ -22,7 +22,7 @@ export const PROPERTIES = {
     cursorsensitivity: slider('cursor-sensitivity', 'Cursor sensitivity, %', 0, 200, 50, 'followcursor.value'),
     cursorsmoothing: slider('cursor-smoothing', 'Cursor smoothness, %', 0, 100, 40, 'followcursor.value'),
     background: combo('background', 'Background', BACKGROUNDS, 'milky-way',
-        "mode.value != 'galaxy' && !(mode.value == 'craft' && (craft.value == 'perseverance' || craft.value == 'apollo'))"),
+        "mode.value != 'galaxy' && !(mode.value == 'craft' && (craft.value == 'perseverance' || craft.value == 'apollo' || craft.value == 'galileo' || craft.value == 'huygens' || craft.value == 'venera'))"),
     charsize: slider('char-size', 'Character size', 1, 8, 2),
     rotationspeed: slider('rotation-speed', 'Disk rotation speed, %', 0, 400, 100),
     elevation: slider('elevation', 'Camera height, °', -30, 60, 8),

@@ -116,21 +116,21 @@ export const PAIR_STAND_INS = {'quasar': 'black-hole', 'dyson': 'star', 'crab': 
 const CRAFTS = {
     webb: {distance: 12.5, lift: 0.35, light: [0.35, -0.75, 0.55]},
     voyager: {distance: 19, lift: 0.15, light: [-0.9, 0.3, 0.35]},
-    cassini: {distance: 15, lift: 0.05, light: [0.6, 0.3, 0.75],
+    cassini: {distance: 15, lift: 0.05, light: [0.6, 0.3, 0.75], glow: [0.72, 0.68, 0.62],
         body: {kind: 'planet', position: [-30, -7, -72], scale: 5}},
     perseverance: {distance: 7.5, lift: 0.05, light: [-1, 0.5, 0.45]},
     apollo: {distance: 21, lift: -0.02, light: [-0.8, 0.3, 0.55],
         body: {kind: 'earth', position: [-24, 12, -84], scale: 1.8}},
-    hubble: {distance: 14, lift: 0.2, light: [-0.6, 0.55, 0.6],
-        body: {kind: 'earth', position: [0, -75, -30], scale: 22}},
-    starship: {distance: 13, lift: 0.2, light: [-0.5, 0.6, 0.6],
-        body: {kind: 'earth', position: [0, -75, -30], scale: 22}},
-    'new-horizons': {distance: 8.5, lift: 0.1, light: [0.3, 0.3, 1]},
-    parker: {distance: 9, lift: 0.1, light: [0.75, -0.15, -0.65]},
-    juno: {distance: 15, lift: 0.35, light: [-0.7, 0.45, 0.55]},
+    hubble: {distance: 10.5, lift: 0.2, light: [0.9, 0.35, -0.25], glow: [0.3, 0.32, 0.38], calm: 1,
+        body: {kind: 'earth', position: [-60, -50, -40], scale: 22}},
+    starship: {distance: 10.5, lift: 0.2, light: [0.9, 0.35, -0.25], glow: [0.3, 0.32, 0.38], calm: 1,
+        body: {kind: 'earth', position: [-55, -60, -30], scale: 22}},
+    'new-horizons': {distance: 8.5, lift: 0.1, light: [1, 0.25, -0.1]},
+    parker: {distance: 7, lift: 0.1, light: [0.85, -0.1, -0.55]},
+    juno: {distance: 12, lift: 0.35, light: [-0.95, 0.3, -0.1]},
     galileo: {distance: 9, lift: 0.02, light: [0.8, 0.55, 0.6]},
     huygens: {distance: 6, lift: 0.35, light: [-0.5, 0.7, 0.3]},
-    rosetta: {distance: 17, lift: 0.15, light: [-0.6, 0.4, 0.7]},
+    rosetta: {distance: 17, lift: 0.15, light: [-0.9, 0.35, 0.15]},
     venera: {distance: 6.5, lift: 0.2, light: [0.3, 1, 0.4]},
 };
 const CRAFT_PERIOD = 240;
@@ -663,11 +663,12 @@ export class Scene {
         state.bodies = kind ? [body(kind, position, scale)] : [];
         const length = Math.hypot(...craft.light);
         state.light = [...craft.light.map(v => v / length), 0];
+        state.lightColor = craft.glow ?? [1, 1, 1];
         state.distance = craft.distance;
         state.lift = craft.lift;
         state.tidal[3] = 0;
         state.moonKeep = kind === 'earth' ? 0 : 1;
-        state.craft = [this._time % CRAFT_PERIOD, 0, 0, 0];
+        state.craft = [this._time % CRAFT_PERIOD, craft.calm ?? 0, 0, 0];
     }
 
     _quasar(state) {

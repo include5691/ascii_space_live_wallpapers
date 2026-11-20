@@ -1013,7 +1013,7 @@ vec3 earthSurface(vec3 n, vec3 p, vec3 view, float index, float shade, vec3 cent
     float lights = aurora(local, index) * (1.0 - smoothstep(-0.2, 0.15, mu));
     return u_light_color * shade * (albedo * (0.02 + 1.5 * max(mu, 0.0)) + vec3(1.0, 0.95, 0.85) * glint * 1.5
         + vec3(0.35, 0.6, 1.0) * rim * smoothstep(-0.2, 0.4, mu) * 0.8)
-        + vec3(1.0, 0.72, 0.35) * cities * night * 0.35 + AURORA_COLOR * lights * 1.6;
+        + vec3(1.0, 0.72, 0.35) * cities * night * 0.35 * (1.0 - 0.7 * u_craft.y) + AURORA_COLOR * lights * 1.6 * (1.0 - u_craft.y);
 }
 
 float sunlit(vec3 point, vec3 center, float radius) {
@@ -1260,7 +1260,7 @@ const vec3 FOIL = vec3(1.0, 0.66, 0.24);
 const vec3 PAINT = vec3(0.85, 0.85, 0.82);
 const vec3 METAL = vec3(0.55, 0.56, 0.6);
 const vec3 DARK = vec3(0.13, 0.13, 0.14);
-const vec3 PANEL = vec3(0.07, 0.1, 0.28);
+const vec3 PANEL = vec3(0.26, 0.32, 0.66);
 
 float cycle(float period, float phase) {
     return sin(2.0 * PI * (u_craft.x / period + phase));
@@ -1719,7 +1719,7 @@ vec3 horizonColor(vec3 sun) {
 
 #ifdef HAS_HUBBLE
 #define CRAFT_SPECIAL
-const vec3 CRAFT_AMBIENT = vec3(0.04, 0.05, 0.07);
+const vec3 CRAFT_AMBIENT = vec3(0.07, 0.09, 0.13);
 const vec3 SUN_COLOR = vec3(1.05, 1.03, 1.0);
 const vec4 CRAFT_BOUND = vec4(0.4, 0.0, 0.0, 5.2);
 
@@ -1744,7 +1744,7 @@ vec2 craftMap(vec3 p) {
     vec3 side = vec3(q.x, q.y, abs(q.z));
     hit = nearer(hit, vec2(sdCapsule(side, vec3(-0.55, 0.0, 0.8), vec3(-0.55, 0.0, 4.7), 0.035), 5.0));
     vec3 wing = side - vec3(-0.55, 0.0, 2.8);
-    wing.xy = rotated(wing.xy, -0.9);
+    wing.xy = rotated(wing.xy, 0.7);
     hit = nearer(hit, vec2(sdBox(wing, vec3(0.55, 0.012, 1.85)), 7.0));
     vec3 mast = vec3(q.x, abs(q.y), q.z);
     hit = nearer(hit, vec2(sdCapsule(mast, vec3(0.5, 0.7, 0.0), vec3(0.5, 1.9, 0.0), 0.03), 5.0));
@@ -1764,14 +1764,14 @@ vec4 craftSpecial(vec3 p, vec3 local, vec3 n) {
 
 #ifdef HAS_STARSHIP
 #define CRAFT_SPECIAL
-const vec3 CRAFT_AMBIENT = vec3(0.04, 0.05, 0.07);
+const vec3 CRAFT_AMBIENT = vec3(0.07, 0.09, 0.13);
 const vec3 SUN_COLOR = vec3(1.05, 1.03, 1.0);
 const vec4 CRAFT_BOUND = vec4(0.0, 0.0, 0.0, 3.9);
 
 vec3 craftFrame(vec3 p) {
     p.xz = rotated(p.xz, 0.35 + 0.2 * cycle(200.0, 0.0));
     p.xy = rotated(p.xy, 0.08);
-    p.yz = rotated(p.yz, 0.2 + 0.1 * cycle(90.0, 0.2));
+    p.yz = rotated(p.yz, -0.45 + 0.1 * cycle(90.0, 0.2));
     return p;
 }
 
@@ -1812,10 +1812,10 @@ vec4 craftSpecial(vec3 p, vec3 local, vec3 n) {
 
 #ifdef HAS_JUNO
 #define CRAFT_SKY
-const vec3 CRAFT_AMBIENT = vec3(0.04, 0.04, 0.05);
+const vec3 CRAFT_AMBIENT = vec3(0.09, 0.09, 0.11);
 const vec3 SUN_COLOR = vec3(0.95, 0.93, 0.9);
 const vec4 CRAFT_BOUND = vec4(0.0, 0.0, 0.0, 5.9);
-const vec3 JUPITER_CENTER = vec3(6.0, -70.0, -40.0);
+const vec3 JUPITER_CENTER = vec3(6.0, -78.0, -40.0);
 const float JUPITER_RADIUS = 62.0;
 
 vec3 craftFrame(vec3 p) {
@@ -1878,7 +1878,7 @@ vec4 craftSky(vec3 origin, vec3 d, vec3 sun) {
     vec3 n = normalize(origin + d * t - JUPITER_CENTER);
     vec3 local = bodyFrame(n, normalize(vec3(-0.1, 1.0, 0.42)), 2.0 * PI * u_craft.x / 240.0);
     float diffuse = max(dot(n, sun), 0.0);
-    return vec4(jupiterAlbedo(local) * (SUN_COLOR * 1.4 * diffuse + 0.025), 1.0);
+    return vec4(jupiterAlbedo(local) * (SUN_COLOR * 0.65 * pow(diffuse, 1.6) + 0.006), 1.0);
 }
 #endif
 
@@ -1886,8 +1886,8 @@ vec4 craftSky(vec3 origin, vec3 d, vec3 sun) {
 #define CRAFT_SPECIAL
 #define CRAFT_SKY
 #define CRAFT_DUST
-const vec3 CRAFT_AMBIENT = vec3(0.11, 0.075, 0.045);
-const vec3 SUN_COLOR = vec3(1.25, 0.95, 0.62);
+const vec3 CRAFT_AMBIENT = vec3(0.05, 0.035, 0.022);
+const vec3 SUN_COLOR = vec3(1.4, 1.08, 0.72);
 const vec4 CRAFT_BOUND = vec4(0.0, 0.0, 0.0, 3.6);
 const vec3 CANOPY = vec3(0.0, 2.2, 0.0);
 const float FOG = 70.0;
@@ -1930,19 +1930,19 @@ vec3 groundAlbedo(vec3 p) {
     vec2 w = p.xz + vec2(u_craft.x * WIND, 0.0);
     float tone = fbm(vec3(w * 0.09, 3.0), 3.0);
     float band = 0.5 + 0.5 * sin(w.y * 0.12 + 3.0 * tone);
-    vec3 cloud = mix(vec3(0.55, 0.32, 0.17), vec3(0.85, 0.72, 0.52), smoothstep(0.3, 0.7, 0.6 * band + 0.6 * tone - 0.1));
-    return cloud * (0.22 + 0.15 * smoothstep(-11.0, -7.0, p.y));
+    vec3 cloud = mix(vec3(0.42, 0.2, 0.1), vec3(0.95, 0.86, 0.72), smoothstep(0.35, 0.65, 0.6 * band + 0.6 * tone - 0.1));
+    return cloud * (0.03 + 0.22 * smoothstep(-10.0, -7.5, p.y));
 }
 
 vec3 horizonColor(vec3 sun) {
-    return vec3(0.2, 0.13, 0.07);
+    return vec3(0.1, 0.06, 0.035);
 }
 
 vec4 craftSky(vec3 origin, vec3 d, vec3 sun) {
     float up = d.y;
-    vec3 base = mix(vec3(0.23, 0.15, 0.08), vec3(0.11, 0.07, 0.04), smoothstep(-0.1, 0.6, up));
+    vec3 base = mix(vec3(0.12, 0.07, 0.035), vec3(0.015, 0.01, 0.008), smoothstep(-0.05, 0.4, up));
     float veil = fbm(vec3(d.xz / max(d.y, 0.08) * 1.5 + vec2(u_craft.x * 0.01, 0.0), 4.0), 3.0);
-    base += vec3(0.14, 0.1, 0.06) * smoothstep(0.45, 0.8, veil) * smoothstep(0.05, 0.3, up);
+    base += vec3(0.12, 0.08, 0.05) * smoothstep(0.5, 0.8, veil) * smoothstep(0.05, 0.3, up) * (1.0 - smoothstep(0.3, 0.7, up));
     return vec4(base + vec3(0.4, 0.3, 0.18) * exp((dot(d, sun) - 1.0) / 0.15), 1.0);
 }
 
@@ -1968,8 +1968,8 @@ vec3 craftDust(vec3 origin, vec3 dir, float far) {
 #ifdef HAS_VENERA
 #define CRAFT_SPECIAL
 #define CRAFT_SKY
-const vec3 CRAFT_AMBIENT = vec3(0.13, 0.08, 0.03);
-const vec3 SUN_COLOR = vec3(0.95, 0.65, 0.3);
+const vec3 CRAFT_AMBIENT = vec3(0.055, 0.04, 0.028);
+const vec3 SUN_COLOR = vec3(1.15, 0.92, 0.66);
 const vec4 CRAFT_BOUND = vec4(0.3, 0.4, 0.3, 3.2);
 const float FOG = 45.0;
 
@@ -2041,27 +2041,27 @@ float groundHeight(vec2 q) {
 
 vec3 groundAlbedo(vec3 p) {
     vec2 s = slabs(p.xz * 1.6);
-    vec3 rock = vec3(0.17, 0.15, 0.12) * (0.75 + 0.35 * s.y) * (0.85 + 0.3 * noise3(vec3(p.xz * 6.0, 2.0)));
-    return mix(vec3(0.26, 0.2, 0.13), rock, smoothstep(0.03, 0.1, s.x));
+    vec3 rock = vec3(0.09, 0.085, 0.08) * (0.75 + 0.35 * s.y) * (0.85 + 0.3 * noise3(vec3(p.xz * 6.0, 2.0)));
+    return mix(vec3(0.2, 0.15, 0.11), rock, smoothstep(0.03, 0.1, s.x));
 }
 
 vec3 horizonColor(vec3 sun) {
-    return vec3(0.42, 0.28, 0.12);
+    return vec3(0.17, 0.11, 0.065);
 }
 
 vec4 craftSky(vec3 origin, vec3 d, vec3 sun) {
     float up = max(d.y, 0.0);
-    vec3 base = mix(vec3(0.44, 0.3, 0.12), vec3(0.28, 0.17, 0.06), smoothstep(0.0, 0.7, up));
+    vec3 base = mix(vec3(0.17, 0.11, 0.065), vec3(0.03, 0.016, 0.01), smoothstep(0.0, 0.5, up));
     float clouds = fbm(vec3(d.xz / max(d.y, 0.1) * 0.8 + vec2(u_craft.x * 0.004, 0.0), 6.0), 3.0);
-    return vec4(base * (0.85 + 0.3 * clouds), 1.0);
+    return vec4(base * (0.6 + 0.8 * smoothstep(0.35, 0.75, clouds)), 1.0);
 }
 #endif
 
 #ifdef HAS_TITAN
 #define CRAFT_SPECIAL
 #define CRAFT_SKY
-const vec3 CRAFT_AMBIENT = vec3(0.1, 0.06, 0.025);
-const vec3 SUN_COLOR = vec3(0.6, 0.4, 0.18);
+const vec3 CRAFT_AMBIENT = vec3(0.05, 0.04, 0.032);
+const vec3 SUN_COLOR = vec3(0.95, 0.76, 0.56);
 const vec4 CRAFT_BOUND = vec4(1.2, -0.6, -0.3, 3.4);
 const vec3 CHUTE = vec3(2.5, -0.98, -0.9);
 const float FOG = 35.0;
@@ -2119,19 +2119,19 @@ float groundHeight(vec2 q) {
 
 vec3 groundAlbedo(vec3 p) {
     float stone = smoothstep(0.0, 0.02, pebbles(p.xz));
-    vec3 soil = mix(vec3(0.15, 0.09, 0.05), vec3(0.21, 0.13, 0.07), fbm(vec3(p.xz * 2.0, 4.0), 2.0));
-    vec3 ice = vec3(0.48, 0.42, 0.35) * (0.8 + 0.3 * hash13(vec3(floor(p.xz / 0.55), 1.0)));
+    vec3 soil = mix(vec3(0.05, 0.034, 0.026), vec3(0.085, 0.06, 0.042), fbm(vec3(p.xz * 2.0, 4.0), 2.0));
+    vec3 ice = vec3(0.42, 0.44, 0.47) * (0.8 + 0.3 * hash13(vec3(floor(p.xz / 0.55), 1.0)));
     return mix(soil, ice, stone);
 }
 
 vec3 horizonColor(vec3 sun) {
-    return vec3(0.29, 0.17, 0.07);
+    return vec3(0.1, 0.07, 0.045);
 }
 
 vec4 craftSky(vec3 origin, vec3 d, vec3 sun) {
     float up = max(d.y, 0.0);
-    vec3 base = mix(vec3(0.34, 0.2, 0.08), vec3(0.18, 0.1, 0.04), smoothstep(0.0, 0.8, up));
-    base += vec3(0.25, 0.15, 0.05) * exp((dot(d, sun) - 1.0) / 0.25);
+    vec3 base = mix(vec3(0.1, 0.07, 0.045), vec3(0.015, 0.01, 0.009), smoothstep(0.0, 0.5, up));
+    base += vec3(0.1, 0.07, 0.04) * exp((dot(d, sun) - 1.0) / 0.25);
     vec3 saturn = normalize(vec3(-0.45, 0.42, -0.79));
     vec3 east = normalize(cross(saturn, vec3(0.0, 1.0, 0.0)));
     vec3 north = cross(east, saturn);
@@ -2140,7 +2140,7 @@ vec4 craftSky(vec3 origin, vec3 d, vec3 sun) {
     s = rotated(s, 0.25);
     float ring = length(s / vec2(1.0, 0.24));
     float band = smoothstep(0.1, 0.11, ring) * (1.0 - smoothstep(0.16, 0.17, ring)) * step(0.0, max(s.y, 0.07 - length(s)));
-    return vec4(base * (1.0 + 0.3 * max(disc, band)), 1.0);
+    return vec4(base + vec3(0.06, 0.05, 0.035) * max(disc, band), 1.0);
 }
 #endif
 
@@ -2231,8 +2231,8 @@ vec3 craftDust(vec3 origin, vec3 dir, float far) {
 const vec3 CRAFT_AMBIENT = vec3(0.03, 0.03, 0.035);
 const vec3 SUN_COLOR = vec3(0.9, 0.88, 0.85);
 const vec4 CRAFT_BOUND = vec4(-0.3, 0.2, 0.0, 3.4);
-const vec3 PLUTO_CENTER = vec3(-36.0, -14.0, -75.0);
-const float PLUTO_RADIUS = 24.0;
+const vec3 PLUTO_CENTER = vec3(-34.0, -4.0, -75.0);
+const float PLUTO_RADIUS = 18.0;
 const vec3 CHARON_CENTER = vec3(30.0, 12.0, -120.0);
 const float CHARON_RADIUS = 10.0;
 
@@ -2260,7 +2260,7 @@ vec2 craftMap(vec3 p) {
 }
 
 vec3 plutoAlbedo(vec3 n) {
-    vec3 front = normalize(vec3(0.45, 0.05, 1.0));
+    vec3 front = normalize(vec3(0.75, 0.1, 0.65));
     vec3 east = normalize(cross(vec3(0.0, 1.0, 0.0), front));
     vec3 north = cross(front, east);
     float latitude = asin(clamp(dot(n, north), -1.0, 1.0));
@@ -2304,7 +2304,7 @@ const vec3 CRAFT_AMBIENT = vec3(0.16, 0.11, 0.07);
 const vec3 SUN_COLOR = vec3(1.35, 1.15, 0.9);
 const vec4 CRAFT_BOUND = vec4(0.0, 0.0, 0.0, 3.6);
 const float SUN_DISTANCE = 80.0;
-const float SUN_RADIUS = 46.0;
+const float SUN_RADIUS = 34.0;
 
 vec3 craftFrame(vec3 p) {
     vec3 q = orientTo(p, lightFrom(vec3(0.0)));
@@ -2348,11 +2348,11 @@ vec4 craftSky(vec3 origin, vec3 d, vec3 sun) {
         vec3 n = normalize(origin + d * (along - sqrt(SUN_RADIUS * SUN_RADIUS - miss * miss)) - sun * SUN_DISTANCE);
         vec3 local = bodyFrame(n, axis, 2.0 * PI * u_craft.x / 240.0);
         float mu = sqrt(1.0 - r * r);
-        float granules = 0.5 * noise3(local * 40.0 + u_craft.x * 0.05) + fbm(local * 8.0, 3.0);
+        float granules = 0.7 * noise3(local * 40.0 + u_craft.x * 0.05) + 1.2 * fbm(local * 8.0, 3.0) - 0.5;
         float belt = smoothstep(0.05, 0.2, abs(local.y)) * (1.0 - smoothstep(0.45, 0.6, abs(local.y)));
         float spots = smoothstep(0.66, 0.72, fbm(local * 5.0 + 3.0, 3.0)) * belt;
         vec3 color = mix(vec3(1.0, 0.5, 0.18), vec3(1.0, 0.88, 0.6), mu) * (1.0 + 0.6 * granules) * (0.35 + 0.65 * pow(mu, 0.6));
-        return vec4(color * 1.3 * (1.0 - 0.85 * spots), 1.0);
+        return vec4(color * 0.85 * (1.0 - 0.85 * spots), 1.0);
     }
     vec3 toward = normalize(offset);
     vec3 e1 = normalize(cross(toward, axis));
@@ -2360,7 +2360,7 @@ vec4 craftSky(vec3 origin, vec3 d, vec3 sun) {
     vec2 s = vec2(dot(d, e1), dot(d, e2));
     vec2 around = normalize(s);
     float streamers = fbm(vec3(around * 2.5, r * 0.8 - u_craft.x * 0.01), 3.0);
-    vec3 glow = vec3(1.0, 0.8, 0.55) * (exp(-(r - 1.0) * 6.0) * 0.8 + exp(-(r - 1.0) * 2.0) * 0.18 * streamers);
+    vec3 glow = vec3(1.0, 0.8, 0.55) * (exp(-(r - 1.0) * 14.0) * 0.6 + exp(-(r - 1.0) * 4.0) * 0.07 * streamers);
     vec2 disc = around * r;
     for (int k = 0; k < 2; k++) {
         float angle = 2.0 * PI * (0.62 + 0.21 * float(k)) + 0.1 * cycle(240.0, float(k));
@@ -2437,6 +2437,9 @@ vec3 craftSurface(float material, vec3 p, vec3 n, vec3 dir, vec3 sun, float shad
         shine = 0.8;
     } else if (material < 7.5) {
         albedo = PANEL;
+#ifdef HAS_HUBBLE
+        albedo = vec3(0.62, 0.5, 0.32) * (0.85 + 0.3 * step(0.5, fract(local.z * 2.5)));
+#endif
         shine = 1.5;
     } else if (material < 8.5) {
 #ifdef HAS_MARS
@@ -2924,7 +2927,7 @@ vec4 renderPixel(vec2 st) {
             float height = closest[i] / (EARTH_RADIUS * scale) - 1.0;
             float curtain = aurora(bodyFrame(limb, axis, earthSpin(axis, sun, float(i))), float(i)) * exp(-height * 25.0)
                 * (1.0 - smoothstep(-0.2, 0.2, dot(limb, lightFrom(u_bodies[i].xyz + nearPoint[i]))));
-            color += nearTransmittance[i] * AURORA_COLOR * curtain * 0.9;
+            color += nearTransmittance[i] * AURORA_COLOR * curtain * 0.9 * (1.0 - u_craft.y);
         }
 #endif
 #ifdef HAS_WORMHOLE
